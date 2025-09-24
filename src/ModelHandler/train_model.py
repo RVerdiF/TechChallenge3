@@ -32,7 +32,7 @@ def train_and_save_model():
         return
     
     # Prepara dados para ML
-    feature_cols = ['Open', 'High', 'Low', 'Close', 'Volume', 'SMA_10', 'SMA_30', 'RSI', 'EMA_12', 'EMA_26', 'MACD', 'MACD_signal', 'Bollinger_Upper', 'Bollinger_Lower', 'Stochastic_K', 'Stochastic_D']
+    feature_cols = ['Open', 'High', 'Low', 'Close', 'Volume', 'SMA_10', 'SMA_30', 'RSI', 'EMA_12', 'EMA_26', 'MACD', 'MACD_signal', 'Bollinger_Upper', 'Bollinger_Lower', 'Stochastic_K', 'Stochastic_D', 'month', 'day_of_week', 'day_of_month', 'close_7_days_ago', 'close_30_days_ago', 'volume_change_pct']
     X = df_features[feature_cols]
     y = df_features['target']
     
@@ -68,7 +68,8 @@ def train_and_save_model():
     # Calcula e salva métricas
     metrics = {
         "accuracy": np.mean(accuracies),
-        "f1_score": np.mean(f1_scores)
+        "f1_score": np.mean(f1_scores),
+        "features": feature_cols
     }
     
     with open(METRICS_PATH, 'w') as f:

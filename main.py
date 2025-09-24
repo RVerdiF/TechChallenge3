@@ -25,7 +25,7 @@ def main():
             try:
                 # Atualiza dados
                 end_date = datetime.now().strftime("%Y-%m-%d")
-                start_date = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
+                start_date = (datetime.now() - timedelta(days=1095)).strftime("%Y-%m-%d")
                 df_new = data_api.get_btc_data(start_date=start_date, end_date=end_date)
                 if not df_new.empty:
                     data_handler.save_data(df_new)
@@ -48,9 +48,9 @@ def main():
     # Botão para atualizar dados
     if st.sidebar.button("Atualizar Dados"):
         with st.spinner("Atualizando dados..."):
-            # Busca dados dos últimos 365 dias
+            # Busca dados dos últimos 1095 dias
             end_date = datetime.now().strftime("%Y-%m-%d")
-            start_date = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
+            start_date = (datetime.now() - timedelta(days=1095)).strftime("%Y-%m-%d")
             
             df = data_api.get_btc_data(start_date=start_date, end_date=end_date)
             if not df.empty:
@@ -75,15 +75,6 @@ def main():
         st.warning("Nenhum dado encontrado. Clique em 'Atualizar Dados' para começar.")
         return
     
-    # Gráfico de preços
-    st.subheader("Histórico de Preços do Bitcoin")
-    
-    fig = px.line(df.reset_index(), x='date', y='Close', 
-                  title="Preço de Fechamento do BTC (USD)",
-                  labels={'date': 'Data', 'Close': 'Preço (USD)'})
-    fig.update_layout(height=500)
-    st.plotly_chart(fig, use_container_width=True)
-    
     # Estatísticas básicas
     col1, col2, col3, col4 = st.columns(4)
     
@@ -99,20 +90,6 @@ def main():
     
     with col4:
         st.metric("Mínimo (30d)", f"${df['Low'].tail(30).min():,.2f}")
-
-    # Mostra as métricas do modelo
-    st.subheader("Métricas do Modelo")
-    col1, col2 = st.columns(2)
-
-    try:
-        with open("src/ModelHandler/metrics.json", "r") as f:
-            metrics = json.load(f)
-        with col1:
-            st.metric("Acurácia", f"{metrics['accuracy']:.2%}")
-        with col2:
-            st.metric("F1-Score", f"{metrics['f1_score']:.2%}")
-    except FileNotFoundError:
-        st.warning("Métricas não encontradas. Treine o modelo para gerá-las.")
     
     # Seção de previsão
     st.subheader("Previsão para Amanhã")
@@ -128,27 +105,50 @@ def main():
                     return
                 
                 # Faz previsão
-                prediction = predict.make_prediction(df_features)
+                prediction, confidence = predict.make_prediction(df_features)
                 
                 # Exibe resultado
                 if prediction == 1:
-                    st.success("### Tendência para amanhã: **ALTA** 📈")
+                    st.success(f"### Tendência para amanhã: **ALTA** 📈 (Confiança: {confidence:.2%})")
                     st.info("O modelo prevê que o preço do Bitcoin subirá amanhã.")
                 else:
-                    st.error("### Tendência para amanhã: **QUEDA** 📉")
+                    st.error(f"### Tendência para amanhã: **QUEDA** 📉 (Confiança: {confidence:.2%})")
                     st.info("O modelo prevê que o preço do Bitcoin cairá amanhã.")
                 
         except FileNotFoundError:
             st.error("Modelo não encontrado. Execute o treinamento primeiro.")
         except Exception as e:
             st.error(f"Erro ao gerar previsão: {e}")
+
+    # Gráfico de preços
+    st.subheader("Histórico de Preços do Bitcoin")
+    
+    fig = px.line(df.reset_index(), x='date', y='Close', 
+                  title="Preço de Fechamento do BTC (USD)",
+                  labels={'date': 'Data', 'Close': 'Preço (USD)'})
+    fig.update_layout(height=500)
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Mostra as métricas do modelo
+    st.subheader("Métricas do Modelo")
+    col1, col2 = st.columns(2)
+
+    try:
+        with open("src/ModelHandler/metrics.json", "r") as f:
+            metrics = json.load(f)
+        with col1:
+            st.metric("Acurácia", f"{metrics['accuracy']:.2%}")
+        with col2:
+            st.metric("F1-Score", f"{metrics['f1_score']:.2%}")
+    except FileNotFoundError:
+        st.warning("Métricas não encontradas. Treine o modelo para gerá-las.")
     
     # Informações adicionais
     with st.expander("Informações do Dataset"):
         st.write(f"**Período dos dados:** {df.index.min().strftime('%Y-%m-%d')} até {df.index.max().strftime('%Y-%m-%d')}")
         st.write(f"**Total de registros:** {len(df)}")
         st.write("**Colunas:** Open, High, Low, Close, Volume")
-        st.write("**Indicadores do Modelo:** SMA_10, SMA_30, RSI, EMA_12, EMA_26, MACD, MACD_signal, Bollinger_Upper, Bollinger_Lower, Stochastic_K, Stochastic_D")
+        st.write("**Indicadores do Modelo:** SMA_10, SMA_30, RSI, EMA_12, EMA_26, MACD, MACD_signal, Bollinger_Upper, Bollinger_Lower, Stochastic_K, Stochastic_D, month, day_of_week, day_of_month, close_7_days_ago, close_30_days_ago, volume_change_pct")
 
 if __name__ == "__main__":
     main()

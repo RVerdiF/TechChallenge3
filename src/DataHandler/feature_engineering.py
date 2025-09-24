@@ -57,6 +57,18 @@ def create_features(df):
     
     df_features = df.copy()
     
+    # Features de data
+    df_features['month'] = df_features.index.month
+    df_features['day_of_week'] = df_features.index.dayofweek
+    df_features['day_of_month'] = df_features.index.day
+
+    # Features de lag
+    df_features['close_7_days_ago'] = df_features['Close'].shift(7)
+    df_features['close_30_days_ago'] = df_features['Close'].shift(30)
+
+    # Features de volume
+    df_features['volume_change_pct'] = df_features['Volume'].pct_change() * 100
+
     # Médias Móveis Simples
     df_features['SMA_10'] = calculate_sma(df_features['Close'], 10)
     df_features['SMA_30'] = calculate_sma(df_features['Close'], 30)

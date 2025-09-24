@@ -19,7 +19,7 @@ def get_btc_data(ticker="BTC-USD", start_date=None, end_date=None):
         if end_date is None:
             end_date = datetime.now().strftime("%Y-%m-%d")
         if start_date is None:
-            start_date = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
+            start_date = (datetime.now() - timedelta(days=1095)).strftime("%Y-%m-%d")
         
         # Baixa os dados
         btc = yf.Ticker(ticker)
