@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from lightgbm import LGBMClassifier
 from sklearn.model_selection import TimeSeriesSplit
-from sklearn.metrics import accuracy_score, f1_score
+from sklearn.metrics import accuracy_score, f1_score, confusion_matrix
 import src.DataHandler.data_handler as data_handler
 import src.DataHandler.feature_engineering as feature_engineering
 
@@ -44,6 +44,7 @@ def train_and_save_model():
     tscv = TimeSeriesSplit(n_splits=3)
     accuracies = []
     f1_scores = []
+    conf_matrix = np.zeros((2, 2))
     
     print("Treinando modelo...")
     for train_idx, test_idx in tscv.split(X):
@@ -56,6 +57,7 @@ def train_and_save_model():
         y_pred = model.predict(X_test)
         accuracies.append(accuracy_score(y_test, y_pred))
         f1_scores.append(f1_score(y_test, y_pred))
+        conf_matrix += confusion_matrix(y_test, y_pred)
     
     # Treina modelo final com todos os dados
     final_model = LGBMClassifier(random_state=42, verbose=-1)
@@ -69,7 +71,8 @@ def train_and_save_model():
     metrics = {
         "accuracy": np.mean(accuracies),
         "f1_score": np.mean(f1_scores),
-        "features": feature_cols
+        "features": feature_cols,
+        "confusion_matrix": conf_matrix.tolist()
     }
     
     with open(METRICS_PATH, 'w') as f:

@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.figure_factory as ff
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -140,6 +141,20 @@ def main():
             st.metric("Acurácia", f"{metrics['accuracy']:.2%}")
         with col2:
             st.metric("F1-Score", f"{metrics['f1_score']:.2%}")
+
+        # Matriz de confusão
+        with st.expander("Matriz de Confusão"):
+            conf_matrix = metrics.get("confusion_matrix")
+            if conf_matrix:
+                z = conf_matrix
+                x = ['Queda', 'Alta']
+                y = ['Queda', 'Alta']
+                fig_cm = ff.create_annotated_heatmap(z, x=x, y=y, colorscale='Blues', showscale=True)
+                fig_cm.update_layout(title='Matriz de Confusão')
+                st.plotly_chart(fig_cm, use_container_width=True)
+            else:
+                st.warning("Matriz de confusão não encontrada.")
+
     except FileNotFoundError:
         st.warning("Métricas não encontradas. Treine o modelo para gerá-las.")
     
