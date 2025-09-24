@@ -2,16 +2,45 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from datetime import datetime, timedelta
+from pathlib import Path
 import src.ApiHandler.data_api as data_api
 import src.DataHandler.data_handler as data_handler
 import src.DataHandler.feature_engineering as feature_engineering
 import src.ModelHandler.predict as predict
+import src.ModelHandler.train_model as train_model
 
 st.set_page_config(page_title="Dashboard BTC", layout="wide")
 
+DB_PATH = Path("src/DataHandler/btc_prices.db")
+MODEL_PATH = Path("src/ModelHandler/lgbm_model.pkl")
+
 def main():
     st.title("Dashboard de Previsão de Preço do BTC")
-    
+
+    # Verifica se é a primeira execução
+    if not DB_PATH.exists() or not MODEL_PATH.exists():
+        st.info("Primeira execução detectada. Preparando o ambiente...")
+        with st.spinner("Atualizando dados e treinando o modelo. Isso pode levar alguns minutos..."):
+            try:
+                # Atualiza dados
+                end_date = datetime.now().strftime("%Y-%m-%d")
+                start_date = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
+                df_new = data_api.get_btc_data(start_date=start_date, end_date=end_date)
+                if not df_new.empty:
+                    data_handler.save_data(df_new)
+                    st.success("Dados atualizados com sucesso!")
+                else:
+                    st.error("Falha ao buscar novos dados.")
+                    return
+
+                # Treina o modelo
+                train_model.train_and_save_model()
+                st.success("Modelo treinado com sucesso!")
+                st.balloons()
+            except Exception as e:
+                st.error(f"Ocorreu um erro durante a configuração inicial: {e}")
+                return
+
     # Sidebar para controles
     st.sidebar.header("Controles")
     

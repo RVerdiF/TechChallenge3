@@ -1,8 +1,9 @@
 import pandas as pd
 import joblib
 import os
+from pathlib import Path
 
-MODEL_PATH = 'lgbm_model.pkl'
+MODEL_PATH = Path('src\ModelHandler\lgbm_model.pkl')
 
 def make_prediction(input_data):
     """

@@ -1,11 +1,14 @@
 import pandas as pd
 import numpy as np
 import joblib
+from pathlib import Path
 from lightgbm import LGBMClassifier
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import accuracy_score, f1_score
 import src.DataHandler.data_handler as data_handler
 import src.DataHandler.feature_engineering as feature_engineering
+
+MODEL_PATH = Path('src/ModelHandler/lgbm_model.pkl')
 
 def train_and_save_model():
     """Treina o modelo de ML e salva em arquivo."""
@@ -57,7 +60,8 @@ def train_and_save_model():
     final_model.fit(X, y)
     
     # Salva modelo
-    joblib.dump(final_model, 'lgbm_model.pkl')
+    MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump(final_model, MODEL_PATH)
     
     print(f"Modelo treinado e salvo!")
     print(f"Acurácia média: {np.mean(accuracies):.3f}")

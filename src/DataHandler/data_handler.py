@@ -1,11 +1,15 @@
 import pandas as pd
 import sqlite3
 import os
+from pathlib import Path
 
-DB_PATH = "btc_prices.db"
+DB_PATH = Path("src/DataHandler/btc_prices.db")
 
 def init_database():
     """Inicializa o banco de dados SQLite com a tabela prices."""
+    # Garante que o diretório exista
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
