@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import joblib
+import json
 from pathlib import Path
 from lightgbm import LGBMClassifier
 from sklearn.model_selection import TimeSeriesSplit
@@ -9,9 +10,10 @@ import src.DataHandler.data_handler as data_handler
 import src.DataHandler.feature_engineering as feature_engineering
 
 MODEL_PATH = Path('src/ModelHandler/lgbm_model.pkl')
+METRICS_PATH = Path('src/ModelHandler/metrics.json')
 
 def train_and_save_model():
-    """Treina o modelo de ML e salva em arquivo."""
+    """Treina o modelo de ML, salva em arquivo e salva as métricas."""
     
     # Carrega dados
     print("Carregando dados...")
@@ -30,7 +32,7 @@ def train_and_save_model():
         return
     
     # Prepara dados para ML
-    feature_cols = ['Open', 'High', 'Low', 'Close', 'Volume', 'SMA_10', 'SMA_30', 'RSI']
+    feature_cols = ['Open', 'High', 'Low', 'Close', 'Volume', 'SMA_10', 'SMA_30', 'RSI', 'EMA_12', 'EMA_26', 'MACD', 'MACD_signal', 'Bollinger_Upper', 'Bollinger_Lower', 'Stochastic_K', 'Stochastic_D']
     X = df_features[feature_cols]
     y = df_features['target']
     
@@ -62,10 +64,19 @@ def train_and_save_model():
     # Salva modelo
     MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(final_model, MODEL_PATH)
+
+    # Calcula e salva métricas
+    metrics = {
+        "accuracy": np.mean(accuracies),
+        "f1_score": np.mean(f1_scores)
+    }
+    
+    with open(METRICS_PATH, 'w') as f:
+        json.dump(metrics, f, indent=4)
     
     print(f"Modelo treinado e salvo!")
-    print(f"Acurácia média: {np.mean(accuracies):.3f}")
-    print(f"F1-Score médio: {np.mean(f1_scores):.3f}")
+    print(f"Acurácia média: {metrics['accuracy']:.3f}")
+    print(f"F1-Score médio: {metrics['f1_score']:.3f}")
 
 if __name__ == "__main__":
     train_and_save_model()

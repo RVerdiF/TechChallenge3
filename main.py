@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import json
 from datetime import datetime, timedelta
 from pathlib import Path
 import src.ApiHandler.data_api as data_api
@@ -57,6 +58,15 @@ def main():
                 st.sidebar.success("Dados atualizados!")
             else:
                 st.sidebar.error("Erro ao atualizar dados")
+
+    # Botão para treinar modelo
+    if st.sidebar.button("Atualizar Modelo"):
+        with st.spinner("Treinando modelo..."):
+            try:
+                train_model.train_and_save_model()
+                st.sidebar.success("Modelo treinado com sucesso!")
+            except Exception as e:
+                st.sidebar.error(f"Erro ao treinar: {e}")
     
     # Carrega dados existentes
     df = data_handler.load_data()
@@ -89,6 +99,20 @@ def main():
     
     with col4:
         st.metric("Mínimo (30d)", f"${df['Low'].tail(30).min():,.2f}")
+
+    # Mostra as métricas do modelo
+    st.subheader("Métricas do Modelo")
+    col1, col2 = st.columns(2)
+
+    try:
+        with open("src/ModelHandler/metrics.json", "r") as f:
+            metrics = json.load(f)
+        with col1:
+            st.metric("Acurácia", f"{metrics['accuracy']:.2%}")
+        with col2:
+            st.metric("F1-Score", f"{metrics['f1_score']:.2%}")
+    except FileNotFoundError:
+        st.warning("Métricas não encontradas. Treine o modelo para gerá-las.")
     
     # Seção de previsão
     st.subheader("Previsão para Amanhã")
@@ -124,6 +148,7 @@ def main():
         st.write(f"**Período dos dados:** {df.index.min().strftime('%Y-%m-%d')} até {df.index.max().strftime('%Y-%m-%d')}")
         st.write(f"**Total de registros:** {len(df)}")
         st.write("**Colunas:** Open, High, Low, Close, Volume")
+        st.write("**Indicadores do Modelo:** SMA_10, SMA_30, RSI, EMA_12, EMA_26, MACD, MACD_signal, Bollinger_Upper, Bollinger_Lower, Stochastic_K, Stochastic_D")
 
 if __name__ == "__main__":
     main()

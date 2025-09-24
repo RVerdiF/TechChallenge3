@@ -22,7 +22,7 @@ def make_prediction(input_data):
     model = joblib.load(MODEL_PATH)
     
     # Features esperadas pelo modelo
-    feature_cols = ['Open', 'High', 'Low', 'Close', 'Volume', 'SMA_10', 'SMA_30', 'RSI']
+    feature_cols = ['Open', 'High', 'Low', 'Close', 'Volume', 'SMA_10', 'SMA_30', 'RSI', 'EMA_12', 'EMA_26', 'MACD', 'MACD_signal', 'Bollinger_Upper', 'Bollinger_Lower', 'Stochastic_K', 'Stochastic_D']
     
     # Verifica se todas as features estão presentes
     missing_features = [col for col in feature_cols if col not in input_data.columns]
