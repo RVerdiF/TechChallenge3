@@ -16,6 +16,42 @@ st.set_page_config(page_title="Dashboard BTC", layout="wide")
 DB_PATH = Path("src/DataHandler/btc_prices.db")
 MODEL_PATH = Path("src/ModelHandler/lgbm_model.pkl")
 METRICS_PATH = Path("src/ModelHandler/metrics.json")
+CONFIG_PATH = Path("config.json")
+
+def load_config():
+    """Carrega a configuração do arquivo JSON."""
+    if CONFIG_PATH.exists():
+        with open(CONFIG_PATH, "r") as f:
+            return json.load(f)
+    else:
+        # Valores padrão
+        return {
+            "model_params": {
+                'n_estimators': 100,
+                'learning_rate': 0.1,
+                'max_depth': -1,
+                'num_leaves': 31,
+                'reg_alpha': 0.0,
+                'reg_lambda': 0.0
+            },
+            "feature_params": {
+                'sma_window_1': 10,
+                'sma_window_2': 30,
+                'rsi_window': 14,
+                'ema_window_1': 12,
+                'ema_window_2': 26,
+                'macd_fast': 12,
+                'macd_slow': 26,
+                'macd_signal': 9,
+                'bollinger_window': 20,
+                'stochastic_window': 14
+            }
+        }
+
+def save_config(config):
+    """Salva a configuração em um arquivo JSON."""
+    with open(CONFIG_PATH, "w") as f:
+        json.dump(config, f, indent=4)
 
 def dashboard_page():
     st.title("Dashboard de Previsão de Preço do BTC")
@@ -37,11 +73,8 @@ def dashboard_page():
         return
 
     # Carrega parâmetros de features do último treino
-    feature_params = {}
-    if METRICS_PATH.exists():
-        with open(METRICS_PATH, "r") as f:
-            metrics = json.load(f)
-            feature_params = metrics.get("feature_params", {})
+    config = load_config()
+    feature_params = config.get("feature_params", {})
 
     col1, col2, col3, col4 = st.columns(4)
     with col1:
@@ -75,10 +108,8 @@ def dashboard_page():
 
     st.subheader("Histórico de Preços do Bitcoin")
     
-    # Filtro de período
     period = st.radio("Selecione o período", ["1 mês", "3 meses", "1 ano", "Tudo"], index=3, horizontal=True)
 
-    # Filtra o dataframe
     if period != "Tudo":
         end_date = df.index.max()
         if period == "1 mês":
@@ -95,8 +126,6 @@ def dashboard_page():
     fig.update_layout(height=500)
     st.plotly_chart(fig, use_container_width=True)
 
-
-
     with st.expander("Informações do Dataset"):
         st.write(f"**Período dos dados:** {df.index.min().strftime('%Y-%m-%d')} até {df.index.max().strftime('%Y-%m-%d')}")
         st.write(f"**Total de registros:** {len(df)}")
@@ -108,36 +137,40 @@ def dashboard_page():
 
 def settings_page():
     st.title("Configurações")
+    
+    config = load_config()
+    model_params_saved = config.get("model_params", {})
+    feature_params_saved = config.get("feature_params", {})
 
     with st.expander("Parâmetros de Treinamento do Modelo", expanded=True):
         col1, col2 = st.columns(2)
         with col1:
-            n_estimators = st.number_input("Número de Estimadores", min_value=1, value=100, key="n_estimators")
-            max_depth = st.number_input("Profundidade Máxima", min_value=-1, value=-1, key="max_depth", help="-1 para sem limite")
-            reg_alpha = st.number_input("Regularização L1 (Alpha)", min_value=0.0, value=0.0, step=0.01, key="reg_alpha")
+            n_estimators = st.number_input("Número de Estimadores", min_value=1, value=model_params_saved.get('n_estimators', 100), key="n_estimators")
+            max_depth = st.number_input("Profundidade Máxima", min_value=-1, value=model_params_saved.get('max_depth', -1), key="max_depth", help="-1 para sem limite")
+            reg_alpha = st.number_input("Regularização L1 (Alpha)", min_value=0.0, value=model_params_saved.get('reg_alpha', 0.0), step=0.01, key="reg_alpha")
         with col2:
-            learning_rate = st.number_input("Taxa de Aprendizagem", min_value=0.01, value=0.1, step=0.01, key="learning_rate")
-            num_leaves = st.number_input("Número de Folhas", min_value=2, value=31, key="num_leaves")
-            reg_lambda = st.number_input("Regularização L2 (Lambda)", min_value=0.0, value=0.0, step=0.01, key="reg_lambda")
+            learning_rate = st.number_input("Taxa de Aprendizagem", min_value=0.01, value=model_params_saved.get('learning_rate', 0.1), step=0.01, key="learning_rate")
+            num_leaves = st.number_input("Número de Folhas", min_value=2, value=model_params_saved.get('num_leaves', 31), key="num_leaves")
+            reg_lambda = st.number_input("Regularização L2 (Lambda)", min_value=0.0, value=model_params_saved.get('reg_lambda', 0.0), step=0.01, key="reg_lambda")
 
     with st.expander("Parâmetros dos Indicadores Técnicos", expanded=True):
         col1, col2, col3 = st.columns(3)
         with col1:
             st.subheader("Médias Móveis")
-            sma_short = st.number_input("SMA Curta", min_value=1, value=10, key="sma_short")
-            sma_long = st.number_input("SMA Longa", min_value=1, value=30, key="sma_long")
-            ema_short = st.number_input("EMA Curta", min_value=1, value=12, key="ema_short")
-            ema_long = st.number_input("EMA Longa", min_value=1, value=26, key="ema_long")
+            sma_short = st.number_input("SMA Curta", min_value=1, value=feature_params_saved.get('sma_window_1', 10), key="sma_short")
+            sma_long = st.number_input("SMA Longa", min_value=1, value=feature_params_saved.get('sma_window_2', 30), key="sma_long")
+            ema_short = st.number_input("EMA Curta", min_value=1, value=feature_params_saved.get('ema_window_1', 12), key="ema_short")
+            ema_long = st.number_input("EMA Longa", min_value=1, value=feature_params_saved.get('ema_window_2', 26), key="ema_long")
         with col2:
             st.subheader("Osciladores")
-            rsi_period = st.number_input("Período RSI", min_value=1, value=14, key="rsi_period")
-            stochastic_window = st.number_input("Janela Estocástico", min_value=1, value=14, key="stochastic_window")
-            bollinger_window = st.number_input("Janela Bollinger", min_value=1, value=20, key="bollinger_window")
+            rsi_period = st.number_input("Período RSI", min_value=1, value=feature_params_saved.get('rsi_window', 14), key="rsi_period")
+            stochastic_window = st.number_input("Janela Estocástico", min_value=1, value=feature_params_saved.get('stochastic_window', 14), key="stochastic_window")
+            bollinger_window = st.number_input("Janela Bollinger", min_value=1, value=feature_params_saved.get('bollinger_window', 20), key="bollinger_window")
         with col3:
             st.subheader("MACD")
-            macd_fast = st.number_input("MACD Rápido", min_value=1, value=12, key="macd_fast")
-            macd_slow = st.number_input("MACD Lento", min_value=1, value=26, key="macd_slow")
-            macd_signal = st.number_input("MACD Sinal", min_value=1, value=9, key="macd_signal")
+            macd_fast = st.number_input("MACD Rápido", min_value=1, value=feature_params_saved.get('macd_fast', 12), key="macd_fast")
+            macd_slow = st.number_input("MACD Lento", min_value=1, value=feature_params_saved.get('macd_slow', 26), key="macd_slow")
+            macd_signal = st.number_input("MACD Sinal", min_value=1, value=feature_params_saved.get('macd_signal', 9), key="macd_signal")
 
     if st.button("Treinar Modelo"):
         with st.spinner("Treinando modelo..."):
@@ -162,6 +195,9 @@ def settings_page():
                     'bollinger_window': bollinger_window,
                     'stochastic_window': stochastic_window
                 }
+                # Salva a configuração atual
+                save_config({"model_params": model_params, "feature_params": feature_params})
+                
                 train_model.train_and_save_model(feature_params=feature_params, model_params=model_params)
                 st.success("Modelo treinado com sucesso!")
             except Exception as e:
@@ -202,7 +238,9 @@ def main():
                 else:
                     st.error("Falha ao buscar novos dados.")
                     return
-                train_model.train_and_save_model()
+                
+                config = load_config()
+                train_model.train_and_save_model(feature_params=config["feature_params"], model_params=config["model_params"])
                 st.success("Modelo treinado com sucesso!")
                 st.balloons()
             except Exception as e:

@@ -4,7 +4,7 @@ import os
 import json
 from pathlib import Path
 
-MODEL_PATH = Path('src\ModelHandler\lgbm_model.pkl')
+MODEL_PATH = Path('src/ModelHandler/lgbm_model.pkl')
 METRICS_PATH = Path('src/ModelHandler/metrics.json')
 
 def make_prediction(input_data):
