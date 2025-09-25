@@ -109,26 +109,58 @@ def dashboard_page():
 def settings_page():
     st.title("Configurações")
 
-    st.header("Parâmetros de Treinamento do Modelo")
-    n_estimators = st.number_input("Número de Estimadores", min_value=1, value=100, key="n_estimators")
-    learning_rate = st.number_input("Taxa de Aprendizagem", min_value=0.01, value=0.1, step=0.01, key="learning_rate")
+    with st.expander("Parâmetros de Treinamento do Modelo", expanded=True):
+        col1, col2 = st.columns(2)
+        with col1:
+            n_estimators = st.number_input("Número de Estimadores", min_value=1, value=100, key="n_estimators")
+            max_depth = st.number_input("Profundidade Máxima", min_value=-1, value=-1, key="max_depth", help="-1 para sem limite")
+            reg_alpha = st.number_input("Regularização L1 (Alpha)", min_value=0.0, value=0.0, step=0.01, key="reg_alpha")
+        with col2:
+            learning_rate = st.number_input("Taxa de Aprendizagem", min_value=0.01, value=0.1, step=0.01, key="learning_rate")
+            num_leaves = st.number_input("Número de Folhas", min_value=2, value=31, key="num_leaves")
+            reg_lambda = st.number_input("Regularização L2 (Lambda)", min_value=0.0, value=0.0, step=0.01, key="reg_lambda")
 
-    st.header("Parâmetros dos Indicadores Técnicos")
-    sma_short = st.number_input("Média Móvel Curta (SMA)", min_value=1, value=10, key="sma_short")
-    sma_long = st.number_input("Média Móvel Longa (SMA)", min_value=1, value=30, key="sma_long")
-    rsi_period = st.number_input("Período do RSI", min_value=1, value=14, key="rsi_period")
+    with st.expander("Parâmetros dos Indicadores Técnicos", expanded=True):
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.subheader("Médias Móveis")
+            sma_short = st.number_input("SMA Curta", min_value=1, value=10, key="sma_short")
+            sma_long = st.number_input("SMA Longa", min_value=1, value=30, key="sma_long")
+            ema_short = st.number_input("EMA Curta", min_value=1, value=12, key="ema_short")
+            ema_long = st.number_input("EMA Longa", min_value=1, value=26, key="ema_long")
+        with col2:
+            st.subheader("Osciladores")
+            rsi_period = st.number_input("Período RSI", min_value=1, value=14, key="rsi_period")
+            stochastic_window = st.number_input("Janela Estocástico", min_value=1, value=14, key="stochastic_window")
+            bollinger_window = st.number_input("Janela Bollinger", min_value=1, value=20, key="bollinger_window")
+        with col3:
+            st.subheader("MACD")
+            macd_fast = st.number_input("MACD Rápido", min_value=1, value=12, key="macd_fast")
+            macd_slow = st.number_input("MACD Lento", min_value=1, value=26, key="macd_slow")
+            macd_signal = st.number_input("MACD Sinal", min_value=1, value=9, key="macd_signal")
 
     if st.button("Treinar Modelo"):
         with st.spinner("Treinando modelo..."):
             try:
                 model_params = {
                     'n_estimators': n_estimators,
-                    'learning_rate': learning_rate
+                    'learning_rate': learning_rate,
+                    'max_depth': max_depth,
+                    'num_leaves': num_leaves,
+                    'reg_alpha': reg_alpha,
+                    'reg_lambda': reg_lambda
                 }
                 feature_params = {
                     'sma_window_1': sma_short,
                     'sma_window_2': sma_long,
-                    'rsi_window': rsi_period
+                    'rsi_window': rsi_period,
+                    'ema_window_1': ema_short,
+                    'ema_window_2': ema_long,
+                    'macd_fast': macd_fast,
+                    'macd_slow': macd_slow,
+                    'macd_signal': macd_signal,
+                    'bollinger_window': bollinger_window,
+                    'stochastic_window': stochastic_window
                 }
                 train_model.train_and_save_model(feature_params=feature_params, model_params=model_params)
                 st.success("Modelo treinado com sucesso!")
