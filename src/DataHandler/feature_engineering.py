@@ -42,12 +42,13 @@ def calculate_stochastic_oscillator(data_close, data_high, data_low, window=14):
     d_percent = k_percent.rolling(window=3).mean()
     return k_percent, d_percent
 
-def create_features(df):
+def create_features(df, params={}):
     """
     Cria features para o modelo de ML.
     
     Args:
         df (pd.DataFrame): DataFrame com dados de preços
+        params (dict): Dicionário com parâmetros para a engenharia de features
     
     Returns:
         pd.DataFrame: DataFrame com features adicionais
@@ -56,6 +57,18 @@ def create_features(df):
         return df
     
     df_features = df.copy()
+    
+    # Parâmetros com valores padrão
+    sma_window_1 = params.get('sma_window_1', 10)
+    sma_window_2 = params.get('sma_window_2', 30)
+    rsi_window = params.get('rsi_window', 14)
+    ema_window_1 = params.get('ema_window_1', 12)
+    ema_window_2 = params.get('ema_window_2', 26)
+    macd_fast = params.get('macd_fast', 12)
+    macd_slow = params.get('macd_slow', 26)
+    macd_signal = params.get('macd_signal', 9)
+    bollinger_window = params.get('bollinger_window', 20)
+    stochastic_window = params.get('stochastic_window', 14)
     
     # Features de data
     df_features['month'] = df_features.index.month
@@ -70,24 +83,24 @@ def create_features(df):
     df_features['volume_change_pct'] = df_features['Volume'].pct_change() * 100
 
     # Médias Móveis Simples
-    df_features['SMA_10'] = calculate_sma(df_features['Close'], 10)
-    df_features['SMA_30'] = calculate_sma(df_features['Close'], 30)
+    df_features[f'SMA_{sma_window_1}'] = calculate_sma(df_features['Close'], sma_window_1)
+    df_features[f'SMA_{sma_window_2}'] = calculate_sma(df_features['Close'], sma_window_2)
     
     # RSI
-    df_features['RSI'] = calculate_rsi(df_features['Close'])
+    df_features['RSI'] = calculate_rsi(df_features['Close'], window=rsi_window)
 
     # EMA
-    df_features['EMA_12'] = calculate_ema(df_features['Close'], 12)
-    df_features['EMA_26'] = calculate_ema(df_features['Close'], 26)
+    df_features[f'EMA_{ema_window_1}'] = calculate_ema(df_features['Close'], ema_window_1)
+    df_features[f'EMA_{ema_window_2}'] = calculate_ema(df_features['Close'], ema_window_2)
 
     # MACD
-    df_features['MACD'], df_features['MACD_signal'] = calculate_macd(df_features['Close'])
+    df_features['MACD'], df_features['MACD_signal'] = calculate_macd(df_features['Close'], window_fast=macd_fast, window_slow=macd_slow, window_signal=macd_signal)
 
     # Bollinger Bands
-    df_features['Bollinger_Upper'], df_features['Bollinger_Lower'] = calculate_bollinger_bands(df_features['Close'])
+    df_features['Bollinger_Upper'], df_features['Bollinger_Lower'] = calculate_bollinger_bands(df_features['Close'], window=bollinger_window)
 
     # Stochastic Oscillator
-    df_features['Stochastic_K'], df_features['Stochastic_D'] = calculate_stochastic_oscillator(df_features['Close'], df_features['High'], df_features['Low'])
+    df_features['Stochastic_K'], df_features['Stochastic_D'] = calculate_stochastic_oscillator(df_features['Close'], df_features['High'], df_features['Low'], window=stochastic_window)
     
     # Target: 1 se preço de amanhã > preço de hoje, 0 caso contrário
     df_features['target'] = (df_features['Close'].shift(-1) > df_features['Close']).astype(int)
