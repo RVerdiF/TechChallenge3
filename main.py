@@ -329,14 +329,22 @@ def backtesting_page(model_path, metrics_path):
                 )
 
                 st.subheader("Resultados do Backtest")
-                col1, col2, col3, col4 = st.columns(4)
+                col1, col2, col3 = st.columns(3)
                 col1.metric("Retorno Total da Estratégia", f"{results['total_return_pct']:.2f}%")
-                col2.metric("Retorno Buy & Hold", f"{results['buy_and_hold_return_pct']:.2f}%")
+                col1.metric("Retorno Buy & Hold", f"{results['buy_and_hold_return_pct']:.2f}%")
+                col2.metric("Sharpe Ratio", f"{results['sharpe_ratio']:.2f}")
+                col2.metric("Max Drawdown", f"{results['max_drawdown']:.2%}")
                 col3.metric("Total de Operações", results['total_trades'])
-                col4.metric("Taxa de Acerto (Win Rate)", f"{results['win_rate']:.2f}%")
+                col3.metric("Taxa de Acerto (Win Rate)", f"{results['win_rate']:.2f}%")
 
                 st.subheader("Evolução do Portfólio")
-                st.line_chart(results['portfolio_history'])
+                portfolio_history = results['portfolio_history']['value']
+                buy_and_hold_history = results['buy_and_hold_history']
+                
+                chart_data = pd.concat([portfolio_history, buy_and_hold_history], axis=1)
+                chart_data.columns = ['Estratégia', 'Buy & Hold']
+                
+                st.line_chart(chart_data)
 
                 st.subheader("Histórico de Operações")
                 st.dataframe(trades_history)

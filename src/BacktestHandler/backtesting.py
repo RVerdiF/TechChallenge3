@@ -89,10 +89,26 @@ def run_backtest(df, model, feature_cols, initial_capital=1000.0, start_date=Non
     portfolio_history = pd.DataFrame(portfolio_values).set_index('date')
     trades_history = pd.DataFrame(trades)
 
+    # Total Return
     total_return_pct = ((portfolio_history['value'].iloc[-1] / initial_capital) - 1) * 100
     
-    # Buy and Hold Return
-    buy_and_hold_return_pct = ((df_backtest['Close'].iloc[-1] / df_backtest['Close'].iloc[0]) - 1) * 100
+    # Buy and Hold
+    buy_and_hold_shares = initial_capital / df_backtest['Close'].iloc[0]
+    buy_and_hold_history = buy_and_hold_shares * df_backtest['Close']
+    buy_and_hold_history.name = "Buy & Hold"
+    buy_and_hold_return_pct = ((buy_and_hold_history.iloc[-1] / initial_capital) - 1) * 100
+
+    # Sharpe Ratio
+    daily_returns = portfolio_history['value'].pct_change().dropna()
+    if daily_returns.std() > 0:
+        sharpe_ratio = (daily_returns.mean() / daily_returns.std()) * np.sqrt(252)
+    else:
+        sharpe_ratio = 0.0
+
+    # Max Drawdown
+    portfolio_history['peak'] = portfolio_history['value'].cummax()
+    portfolio_history['drawdown'] = (portfolio_history['value'] - portfolio_history['peak']) / portfolio_history['peak']
+    max_drawdown = portfolio_history['drawdown'].min()
 
     if not trades_history.empty and trades_history['profit'].notna().any():
         profitable_trades = trades_history[trades_history['profit'] > 0]
@@ -105,9 +121,12 @@ def run_backtest(df, model, feature_cols, initial_capital=1000.0, start_date=Non
     results = {
         "total_return_pct": total_return_pct,
         "buy_and_hold_return_pct": buy_and_hold_return_pct,
+        "sharpe_ratio": sharpe_ratio,
+        "max_drawdown": max_drawdown,
         "win_rate": win_rate,
         "total_trades": total_trades,
-        "portfolio_history": portfolio_history
+        "portfolio_history": portfolio_history,
+        "buy_and_hold_history": buy_and_hold_history
     }
 
     return results, trades_history
