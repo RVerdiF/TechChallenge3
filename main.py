@@ -154,13 +154,13 @@ def settings_page(model_path, metrics_path):
     with st.expander("Parâmetros de Treinamento do Modelo", expanded=True):
         col1, col2 = st.columns(2)
         with col1:
-            n_estimators = st.number_input("Número de Estimadores", min_value=1, value=model_params_saved.get('n_estimators', 100), key="n_estimators")
-            max_depth = st.number_input("Profundidade Máxima", min_value=-1, value=model_params_saved.get('max_depth', -1), key="max_depth", help="-1 para sem limite")
-            reg_alpha = st.number_input("Regularização L1 (Alpha)", min_value=0.0, value=model_params_saved.get('reg_alpha', 0.0), step=0.01, key="reg_alpha")
+            n_estimators = st.number_input("Número de Estimadores", min_value=1, value=model_params_saved.get('n_estimators', 100), key="n_estimators", help="Número de árvores de decisão no modelo. Mais árvores podem melhorar a precisão, mas também aumentam o tempo de treinamento.")
+            max_depth = st.number_input("Profundidade Máxima", min_value=-1, value=model_params_saved.get('max_depth', -1), key="max_depth", help="Profundidade máxima de cada árvore. Um valor maior pode capturar padrões mais complexos, mas também pode levar a overfitting. -1 significa sem limite.")
+            reg_alpha = st.number_input("Regularização L1 (Alpha)", min_value=0.0, value=model_params_saved.get('reg_alpha', 0.0), step=0.01, key="reg_alpha", help="Termo de regularização L1. Ajuda a prevenir overfitting, penalizando pesos grandes. Útil quando há muitas features.")
         with col2:
-            learning_rate = st.number_input("Taxa de Aprendizagem", min_value=0.01, value=model_params_saved.get('learning_rate', 0.1), step=0.01, key="learning_rate")
-            num_leaves = st.number_input("Número de Folhas", min_value=2, value=model_params_saved.get('num_leaves', 31), key="num_leaves")
-            reg_lambda = st.number_input("Regularização L2 (Lambda)", min_value=0.0, value=model_params_saved.get('reg_lambda', 0.0), step=0.01, key="reg_lambda")
+            learning_rate = st.number_input("Taxa de Aprendizagem", min_value=0.01, value=model_params_saved.get('learning_rate', 0.1), step=0.01, key="learning_rate", help="Taxa de aprendizado. Um valor menor torna o aprendizado mais robusto, mas exige mais árvores (n_estimators).")
+            num_leaves = st.number_input("Número de Folhas", min_value=2, value=model_params_saved.get('num_leaves', 31), key="num_leaves", help="Número máximo de folhas em uma árvore. Um valor maior aumenta a complexidade do modelo.")
+            reg_lambda = st.number_input("Regularização L2 (Lambda)", min_value=0.0, value=model_params_saved.get('reg_lambda', 0.0), step=0.01, key="reg_lambda", help="Termo de regularização L2. Também ajuda a prevenir overfitting, de forma semelhante ao L1.")
 
     with st.expander("Parâmetros dos Indicadores Técnicos", expanded=True):
         col1, col2, col3 = st.columns(3)
