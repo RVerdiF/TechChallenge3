@@ -3,7 +3,7 @@ import sqlite3
 import hashlib
 import os
 
-DB_PATH = "users.db"
+DB_PATH = "src/DataHandler/users.db"
 
 def init_db():
     """Initializes the database and creates the users table if it doesn't exist."""
