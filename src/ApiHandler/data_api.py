@@ -1,6 +1,9 @@
 import yfinance as yf
 import pandas as pd
 from datetime import datetime, timedelta
+from src.LogHandler.log_config import get_logger
+
+logger = get_logger(__name__)
 
 def get_btc_data(ticker="BTC-USD", start_date=None, end_date=None):
     """
@@ -35,5 +38,5 @@ def get_btc_data(ticker="BTC-USD", start_date=None, end_date=None):
         return data
         
     except Exception as e:
-        print(f"Erro ao obter dados: {e}")
+        logger.error(f"Erro ao obter dados: {e}")
         return pd.DataFrame()

@@ -8,27 +8,30 @@ from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import accuracy_score, f1_score, confusion_matrix
 import src.DataHandler.data_handler as data_handler
 import src.DataHandler.feature_engineering as feature_engineering
+from src.LogHandler.log_config import get_logger
+
+logger = get_logger(__name__)
 
 def train_and_save_model(feature_params={}, model_params={}, model_path=None, metrics_path=None, start_date=None, end_date=None):
     """Treina o modelo de ML, salva em arquivo e salva as métricas."""
     
     # Carrega dados
-    print("Carregando dados...")
+    logger.info("Carregando dados...")
     df = data_handler.load_data()
     
     if start_date and end_date:
         df = df.loc[start_date:end_date]
     
     if df.empty:
-        print("Nenhum dado encontrado. Execute primeiro a coleta de dados.")
+        logger.info("Nenhum dado encontrado. Execute primeiro a coleta de dados.")
         return
     
     # Aplica engenharia de features
-    print("Criando features...")
+    logger.info("Criando features...")
     df_features = feature_engineering.create_features(df, params=feature_params)
     
     if len(df_features) < 50:
-        print("Dados insuficientes para treinamento.")
+        logger.info("Dados insuficientes para treinamento.")
         return
     
     # Gera a lista de features dinamicamente
@@ -73,7 +76,7 @@ def train_and_save_model(feature_params={}, model_params={}, model_path=None, me
         **model_params
     }
 
-    print("Treinando modelo...")
+    logger.info("Treinando modelo...")
     for train_idx, test_idx in tscv.split(X):
         X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
         y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
@@ -110,9 +113,9 @@ def train_and_save_model(feature_params={}, model_params={}, model_path=None, me
     with open(metrics_path, 'w') as f:
         json.dump(metrics, f, indent=4)
     
-    print(f"Modelo treinado e salvo!")
-    print(f"Acurácia média: {metrics['accuracy']:.3f}")
-    print(f"F1-Score médio: {metrics['f1_score']:.3f}")
+    logger.info(f"Modelo treinado e salvo!")
+    logger.info(f"Acurácia média: {metrics['accuracy']:.3f}")
+    logger.info(f"F1-Score médio: {metrics['f1_score']:.3f}")
 
 if __name__ == "__main__":
     train_and_save_model()
