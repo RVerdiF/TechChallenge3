@@ -1,8 +1,10 @@
 import pandas as pd
 import joblib
-import os
 import json
 from pathlib import Path
+from src.LogHandler.log_config import get_logger
+
+logger = get_logger(__name__)
 
 def make_prediction(input_data, model_path):
     """
@@ -14,10 +16,13 @@ def make_prediction(input_data, model_path):
     Returns:
         tuple: (Previsão, Confiança)
     """
-    if not os.path.exists(model_path):
+    model_path = Path(model_path)
+    if not model_path.exists():
+        logger.error(f"Model not found at {model_path}")
         raise FileNotFoundError("Modelo não encontrado. Execute o treinamento primeiro.")
     
     # Carrega modelo
+    logger.info(f"Loading model from {model_path}")
     model = joblib.load(model_path)
     
     # Carrega lista de features do treinamento
@@ -35,8 +40,10 @@ def make_prediction(input_data, model_path):
     X = input_data[feature_cols].iloc[-1:]  # Última linha
     
     # Faz previsão de probabilidade
+    logger.info(f"Making prediction with {len(feature_cols)} features.")
     prediction_proba = model.predict_proba(X)[0]
     prediction = prediction_proba.argmax()
     confidence = prediction_proba[prediction]
     
+    logger.info(f"Prediction: {prediction}, Confidence: {confidence:.2f}")
     return int(prediction), float(confidence)

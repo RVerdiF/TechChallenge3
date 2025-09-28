@@ -2,22 +2,23 @@
 Script principal para executar o projeto de previsão de BTC.
 """
 
+import argparse
 import src.ApiHandler.data_api as data_api
 import src.DataHandler.data_handler as data_handler
 import src.ModelHandler.train_model as train_model
 from datetime import datetime, timedelta
-from pathlib import Path
+
 from src.LogHandler.log_config import get_logger
+from src.config import USER_DATA_DIR
 
 logger = get_logger(__name__)
 
-# Define paths for the default user 'Admin'
-MODEL_PATH = Path("user_data/Admin/model.pkl")
-METRICS_PATH = Path("user_data/Admin/metrics.json")
-
-def setup_project(update_only=True):
+def setup_project(username="Admin", update_only=True):
     """Configura o projeto: coleta dados e treina modelo."""
-    logger.info("=== Iniciando pipeline de dados e treino ===")
+    logger.info(f"=== Iniciando pipeline de dados e treino para o usuário {username} ===")
+
+    MODEL_PATH = USER_DATA_DIR / username / "lgbm_model.pkl"
+    METRICS_PATH = USER_DATA_DIR / username / "metrics.json"
     
     # 1. Determina o range de datas para a coleta
     logger.info("1. Verificando dados existentes para atualização...")
@@ -53,11 +54,14 @@ def setup_project(update_only=True):
     train_model.train_and_save_model(model_path=MODEL_PATH, metrics_path=METRICS_PATH)
     
     logger.info("=== Pipeline finalizado com sucesso! ===")
-    logger.info("Execute 'streamlit run dashboard.py' para abrir o dashboard.")
+    logger.info("Execute 'streamlit run main.py' para abrir o dashboard.")
     
     return True
 
 if __name__ == "__main__":
-    # Por padrão, o script agora apenas atualiza os dados e retreina.
-    # Para forçar uma recarga completa, chame setup_project(update_only=False)
-    setup_project()
+    parser = argparse.ArgumentParser(description="Setup project for a given user.")
+    parser.add_argument("--user", type=str, default="Admin", help="Username to setup the project for.")
+    parser.add_argument("--full-reload", action="store_true", help="Force a full reload of the data.")
+    args = parser.parse_args()
+
+    setup_project(username=args.user, update_only=not args.full_reload)

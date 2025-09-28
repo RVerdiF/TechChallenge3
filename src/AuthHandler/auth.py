@@ -1,9 +1,13 @@
 
 import sqlite3
 import hashlib
-import os
 
-DB_PATH = "src/DataHandler/users.db"
+from src.config import USERS_DB, USER_DATA_DIR
+from src.LogHandler.log_config import get_logger
+
+logger = get_logger(__name__)
+
+DB_PATH = USERS_DB
 
 def init_db():
     """Initializes the database and creates the users table if it doesn't exist."""
@@ -32,8 +36,10 @@ def create_user(username, password):
         cursor.execute("INSERT INTO users (username, password_hash) VALUES (?, ?)", (username, password_hash))
         conn.commit()
         create_user_artifacts(username)
+        logger.info(f"User {username} created successfully.")
         return True
     except sqlite3.IntegrityError:
+        logger.warning(f"Attempt to create user {username} which already exists.")
         return False  # Username already exists
     finally:
         conn.close()
@@ -47,17 +53,18 @@ def login_user(username, password):
     user = cursor.fetchone()
     conn.close()
     if user:
+        logger.info(f"User {username} logged in successfully.")
         return "some_generated_token"  # In a real application, generate a proper token (e.g., JWT)
     else:
+        logger.warning(f"Failed login attempt for user {username}.")
         return None
 
 def create_user_artifacts(username):
     """Creates the model and metrics files for a new user."""
-    user_dir = os.path.join("user_data", username)
-    os.makedirs(user_dir, exist_ok=True)
-    with open(os.path.join(user_dir, "model.pkl"), "w") as f:
-        f.write("")
-    with open(os.path.join(user_dir, "metrics.json"), "w") as f:
+    user_dir = USER_DATA_DIR / username
+    user_dir.mkdir(parents=True, exist_ok=True)
+    (user_dir / "model.pkl").touch()
+    with open(user_dir / "metrics.json", "w") as f:
         f.write("{}")
 
 if __name__ == '__main__':

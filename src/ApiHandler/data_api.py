@@ -35,6 +35,7 @@ def get_btc_data(ticker="BTC-USD", start_date=None, end_date=None):
         data = data[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
         data.index.name = 'Date'
         
+        logger.info(f"{len(data)} registros de {ticker} obtidos de {start_date} a {end_date}")
         return data
         
     except Exception as e:

@@ -5,8 +5,9 @@ import plotly.express as px
 import plotly.figure_factory as ff
 import json
 import joblib
+from src.LogHandler.log_config import get_logger
 from datetime import datetime, timedelta, date
-from pathlib import Path
+
 import src.ApiHandler.data_api as data_api
 import src.DataHandler.data_handler as data_handler
 import src.DataHandler.feature_engineering as feature_engineering
@@ -14,16 +15,18 @@ import src.ModelHandler.predict as predict
 import src.ModelHandler.train_model as train_model
 from src.AuthHandler import auth
 from src.BacktestHandler import backtesting
+from src.config import CONFIG_FILE, USER_DATA_DIR
 
 st.set_page_config(page_title="Dashboard BTC", layout="wide")
 
-DB_PATH = Path("src/DataHandler/btc_prices.db")
-CONFIG_PATH = Path("config.json")
+logger = get_logger(__name__)
+
+CONFIG_PATH = CONFIG_FILE
 
 auth.init_db()
 
 def get_user_paths(username):
-    user_dir = Path(f"user_data/{username}")
+    user_dir = USER_DATA_DIR / username
     model_path = user_dir / "lgbm_model.pkl"
     metrics_path = user_dir / "metrics.json"
     return model_path, metrics_path
@@ -64,6 +67,7 @@ def save_config(config):
         json.dump(config, f, indent=4)
 
 def dashboard_page(model_path, metrics_path):
+    logger.info("Displaying dashboard page.")
     st.title("Dashboard de Previsão de Preço do BTC")
 
     # Carrega dados para obter data mínima
@@ -88,6 +92,7 @@ def dashboard_page(model_path, metrics_path):
         st.write("")
         st.write("")
         if st.button("Atualizar Dados"):
+            logger.info("User clicked 'Atualizar Dados'.")
             with st.spinner("Atualizando dados..."):
                 data_handler.drop_table()
                 df = data_api.get_btc_data(
@@ -122,6 +127,7 @@ def dashboard_page(model_path, metrics_path):
 
     st.subheader("Previsão para Amanhã")
     if st.button("Gerar Previsão para Amanhã", type="primary"):
+        logger.info("User clicked 'Gerar Previsão para Amanhã'.")
         try:
             with st.spinner("Gerando previsão..."):
                 df_features = feature_engineering.create_features(df, params=feature_params)
@@ -168,6 +174,7 @@ def dashboard_page(model_path, metrics_path):
                 st.write("**Indicadores do Modelo:**", ", ".join(metrics.get("features", [])))
 
 def settings_page(model_path, metrics_path):
+    logger.info("Displaying settings page.")
     st.title("Configurações")
     
     # Carrega dados para obter data mínima
@@ -216,6 +223,7 @@ def settings_page(model_path, metrics_path):
         train_end_date = st.date_input("Data de Fim do Treinamento", value=datetime.now())
 
     if st.button("Treinar Modelo"):
+        logger.info("User clicked 'Treinar Modelo'.")
         with st.spinner("Treinando modelo..."):
             try:
                 model_params = {
@@ -276,6 +284,7 @@ def settings_page(model_path, metrics_path):
         st.warning("Métricas não encontradas. Treine o modelo para gerá-las.")
 
 def backtesting_page(model_path, metrics_path):
+    logger.info("Displaying backtesting page.")
     st.title("Backtesting de Estratégia")
 
     if not model_path.exists() or not metrics_path.exists():
@@ -294,6 +303,7 @@ def backtesting_page(model_path, metrics_path):
         backtest_end_date = st.date_input("Data de Fim do Backtest", value=datetime.now())
 
     if st.button("Iniciar Backtest", type="primary"):
+        logger.info("User clicked 'Iniciar Backtest'.")
         with st.spinner("Executando backtest... Isso pode levar alguns minutos."):
             try:
                 model = joblib.load(model_path)
@@ -335,10 +345,12 @@ def backtesting_page(model_path, metrics_path):
                 st.error(f"Ocorreu um erro durante o backtest: {e}")
 
 def login_page():
+    logger.info("Displaying login page.")
     st.title("Login")
     username = st.text_input("Usuário")
     password = st.text_input("Senha", type="password")
     if st.button("Login"):
+        logger.info(f"Login attempt for user '{username}'.")
         token = auth.login_user(username, password)
         if token:
             st.session_state['authentication_status'] = True
@@ -348,14 +360,17 @@ def login_page():
             st.error("Usuário ou senha inválidos")
 
     if st.button("Não tem uma conta? Cadastre-se"):
+        logger.info("Navigating to registration page.")
         st.session_state['page'] = 'registration'
         st.rerun()
 
 def registration_page():
+    logger.info("Displaying registration page.")
     st.title("Cadastro")
     username = st.text_input("Usuário")
     password = st.text_input("Senha", type="password")
     if st.button("Cadastrar"):
+        logger.info(f"Registration attempt for user '{username}'.")
         if auth.create_user(username, password):
             st.success("Usuário criado com sucesso! Faça o login.")
             st.session_state['page'] = 'login'
@@ -364,17 +379,20 @@ def registration_page():
             st.error("Usuário já existe")
 
     if st.button("Já tem uma conta? Faça o login"):
+        logger.info("Navigating to login page.")
         st.session_state['page'] = 'login'
         st.rerun()
 
 def main():
     if st.session_state.get('authentication_status', False):
         username = st.session_state['username']
+        logger.info(f"User '{username}' is logged in.")
         model_path, metrics_path = get_user_paths(username)
 
         st.sidebar.title(f"Bem-vindo, {username}")
         page = st.sidebar.radio("Selecione uma página", ["Dashboard", "Configurações", "Backtesting"])
 
+        logger.info(f"User '{username}' navigated to page: {page}")
         if page == "Dashboard":
             dashboard_page(model_path, metrics_path)
         elif page == "Configurações":
@@ -383,6 +401,7 @@ def main():
             backtesting_page(model_path, metrics_path)
         
         if st.sidebar.button("Logout"):
+            logger.info(f"User '{username}' logged out.")
             st.session_state['authentication_status'] = False
             st.session_state['username'] = None
             st.rerun()

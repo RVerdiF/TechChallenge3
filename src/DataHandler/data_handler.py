@@ -1,12 +1,12 @@
 import pandas as pd
 import sqlite3
-import os
-from pathlib import Path
 from src.LogHandler.log_config import get_logger
 
 logger = get_logger(__name__)
 
-DB_PATH = Path("src/DataHandler/btc_prices.db")
+from src.config import BTC_PRICES_DB
+
+DB_PATH = BTC_PRICES_DB
 
 def init_database():
     """Inicializa o banco de dados SQLite com a tabela prices."""
@@ -103,7 +103,7 @@ def load_data():
     Returns:
         pd.DataFrame: DataFrame com dados históricos
     """
-    if not os.path.exists(DB_PATH):
+    if not DB_PATH.exists():
         return pd.DataFrame()
     
     conn = sqlite3.connect(DB_PATH)
