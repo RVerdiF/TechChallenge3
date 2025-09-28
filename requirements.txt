@@ -5,3 +5,4 @@ lightgbm
 joblib
 streamlit
 plotly-express
+tdqm
