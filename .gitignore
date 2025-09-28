@@ -213,3 +213,5 @@ __marimo__/
 *.pkl
 
 flowchart.md
+
+lgbm_model.pkl
