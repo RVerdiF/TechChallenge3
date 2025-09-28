@@ -9,10 +9,7 @@ from sklearn.metrics import accuracy_score, f1_score, confusion_matrix
 import src.DataHandler.data_handler as data_handler
 import src.DataHandler.feature_engineering as feature_engineering
 
-MODEL_PATH = Path('src/ModelHandler/lgbm_model.pkl')
-METRICS_PATH = Path('src/ModelHandler/metrics.json')
-
-def train_and_save_model(feature_params={}, model_params={}):
+def train_and_save_model(feature_params={}, model_params={}, model_path=None, metrics_path=None):
     """Treina o modelo de ML, salva em arquivo e salva as métricas."""
     
     # Carrega dados
@@ -90,9 +87,12 @@ def train_and_save_model(feature_params={}, model_params={}):
     final_model = LGBMClassifier(**lgbm_params)
     final_model.fit(X, y)
     
+    if not model_path or not metrics_path:
+        raise ValueError("model_path and metrics_path must be provided")
+
     # Salva modelo
-    MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
-    joblib.dump(final_model, MODEL_PATH)
+    model_path.parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump(final_model, model_path)
 
     # Calcula e salva métricas
     metrics = {
@@ -104,7 +104,7 @@ def train_and_save_model(feature_params={}, model_params={}):
         "model_params": model_params
     }
     
-    with open(METRICS_PATH, 'w') as f:
+    with open(metrics_path, 'w') as f:
         json.dump(metrics, f, indent=4)
     
     print(f"Modelo treinado e salvo!")

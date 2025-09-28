@@ -10,13 +10,20 @@ import src.DataHandler.data_handler as data_handler
 import src.DataHandler.feature_engineering as feature_engineering
 import src.ModelHandler.predict as predict
 import src.ModelHandler.train_model as train_model
+from src.AuthHandler import auth
 
 st.set_page_config(page_title="Dashboard BTC", layout="wide")
 
 DB_PATH = Path("src/DataHandler/btc_prices.db")
-MODEL_PATH = Path("src/ModelHandler/lgbm_model.pkl")
-METRICS_PATH = Path("src/ModelHandler/metrics.json")
 CONFIG_PATH = Path("config.json")
+
+auth.init_db()
+
+def get_user_paths(username):
+    user_dir = Path(f"user_data/{username}")
+    model_path = user_dir / "lgbm_model.pkl"
+    metrics_path = user_dir / "metrics.json"
+    return model_path, metrics_path
 
 def load_config():
     """Carrega a configuração do arquivo JSON."""
@@ -53,7 +60,7 @@ def save_config(config):
     with open(CONFIG_PATH, "w") as f:
         json.dump(config, f, indent=4)
 
-def dashboard_page():
+def dashboard_page(model_path, metrics_path):
     st.title("Dashboard de Previsão de Preço do BTC")
 
     if st.button("Atualizar Dados"):
@@ -72,7 +79,6 @@ def dashboard_page():
         st.warning("Nenhum dado encontrado. Clique em 'Atualizar Dados' para começar.")
         return
 
-    # Carrega parâmetros de features do último treino
     config = load_config()
     feature_params = config.get("feature_params", {})
 
@@ -96,7 +102,7 @@ def dashboard_page():
                 if df_features.empty:
                     st.error("Dados insuficientes para gerar previsão")
                     return
-                prediction, confidence = predict.make_prediction(df_features)
+                prediction, confidence = predict.make_prediction(df_features, model_path)
                 if prediction == 1:
                     st.success(f"### Tendência para amanhã: **ALTA** 📈 (Confiança: {confidence:.2%})")
                 else:
@@ -130,12 +136,12 @@ def dashboard_page():
         st.write(f"**Período dos dados:** {df.index.min().strftime('%Y-%m-%d')} até {df.index.max().strftime('%Y-%m-%d')}")
         st.write(f"**Total de registros:** {len(df)}")
         st.write("**Colunas:** Open, High, Low, Close, Volume")
-        if METRICS_PATH.exists():
-            with open(METRICS_PATH, "r") as f:
+        if metrics_path.exists():
+            with open(metrics_path, "r") as f:
                 metrics = json.load(f)
                 st.write("**Indicadores do Modelo:**", ", ".join(metrics.get("features", [])))
 
-def settings_page():
+def settings_page(model_path, metrics_path):
     st.title("Configurações")
     
     config = load_config()
@@ -195,65 +201,91 @@ def settings_page():
                     'bollinger_window': bollinger_window,
                     'stochastic_window': stochastic_window
                 }
-                # Salva a configuração atual
                 save_config({"model_params": model_params, "feature_params": feature_params})
                 
-                train_model.train_and_save_model(feature_params=feature_params, model_params=model_params)
+                train_model.train_and_save_model(feature_params=feature_params, model_params=model_params, model_path=model_path, metrics_path=metrics_path)
                 st.success("Modelo treinado com sucesso!")
             except Exception as e:
                 st.error(f"Erro ao treinar: {e}")
 
-    st.subheader("Métricas do Modelo")
-    if METRICS_PATH.exists():
-        with open(METRICS_PATH, "r") as f:
+    if metrics_path.exists():
+        with open(metrics_path, "r") as f:
             metrics = json.load(f)
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Acurácia", f"{metrics['accuracy']:.2%}")
-        with col2:
-            st.metric("F1-Score", f"{metrics['f1_score']:.2%}")
-        with st.expander("Matriz de Confusão"):
-            conf_matrix = metrics.get("confusion_matrix")
-            if conf_matrix:
-                z = conf_matrix
-                x = ['Queda', 'Alta']
-                y = ['Queda', 'Alta']
-                fig_cm = ff.create_annotated_heatmap(z, x=x, y=y, colorscale='Blues', showscale=True)
-                fig_cm.update_layout(title='Matriz de Confusão')
-                st.plotly_chart(fig_cm, use_container_width=True, key="confusion_matrix_chart")
+        if metrics:
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Acurácia", f"{metrics.get('accuracy', 0):.2%}")
+            with col2:
+                st.metric("F1-Score", f"{metrics.get('f1_score', 0):.2%}")
+            with st.expander("Matriz de Confusão"):
+                conf_matrix = metrics.get("confusion_matrix")
+                if conf_matrix:
+                    z = conf_matrix
+                    x = ['Queda', 'Alta']
+                    y = ['Queda', 'Alta']
+                    fig_cm = ff.create_annotated_heatmap(z, x=x, y=y, colorscale='Blues', showscale=True)
+                    fig_cm.update_layout(title='Matriz de Confusão')
+                    st.plotly_chart(fig_cm, use_container_width=True, key="confusion_matrix_chart")
+        else:
+            st.warning("Métricas não encontradas. Treine o modelo para gerá-las.")
     else:
         st.warning("Métricas não encontradas. Treine o modelo para gerá-las.")
 
+def login_page():
+    st.title("Login")
+    username = st.text_input("Usuário")
+    password = st.text_input("Senha", type="password")
+    if st.button("Login"):
+        token = auth.login_user(username, password)
+        if token:
+            st.session_state['authentication_status'] = True
+            st.session_state['username'] = username
+            st.rerun()
+        else:
+            st.error("Usuário ou senha inválidos")
+
+    if st.button("Não tem uma conta? Cadastre-se"):
+        st.session_state['page'] = 'registration'
+        st.rerun()
+
+def registration_page():
+    st.title("Cadastro")
+    username = st.text_input("Usuário")
+    password = st.text_input("Senha", type="password")
+    if st.button("Cadastrar"):
+        if auth.create_user(username, password):
+            st.success("Usuário criado com sucesso! Faça o login.")
+            st.session_state['page'] = 'login'
+            st.rerun()
+        else:
+            st.error("Usuário já existe")
+
+    if st.button("Já tem uma conta? Faça o login"):
+        st.session_state['page'] = 'login'
+        st.rerun()
+
 def main():
-    if not DB_PATH.exists() or not MODEL_PATH.exists():
-        st.info("Primeira execução detectada. Preparando o ambiente...")
-        with st.spinner("Atualizando dados e treinando o modelo. Isso pode levar alguns minutos..."):
-            try:
-                end_date = datetime.now().strftime("%Y-%m-%d")
-                start_date = (datetime.now() - timedelta(days=1095)).strftime("%Y-%m-%d")
-                df_new = data_api.get_btc_data(start_date=start_date, end_date=end_date)
-                if not df_new.empty:
-                    data_handler.save_data(df_new)
-                    st.success("Dados atualizados com sucesso!")
-                else:
-                    st.error("Falha ao buscar novos dados.")
-                    return
-                
-                config = load_config()
-                train_model.train_and_save_model(feature_params=config["feature_params"], model_params=config["model_params"])
-                st.success("Modelo treinado com sucesso!")
-                st.balloons()
-            except Exception as e:
-                st.error(f"Ocorreu um erro durante a configuração inicial: {e}")
-                return
+    if st.session_state.get('authentication_status', False):
+        username = st.session_state['username']
+        model_path, metrics_path = get_user_paths(username)
 
-    st.sidebar.title("Menu")
-    page = st.sidebar.radio("Selecione uma página", ["Dashboard", "Configurações"])
+        st.sidebar.title(f"Bem-vindo, {username}")
+        page = st.sidebar.radio("Selecione uma página", ["Dashboard", "Configurações"])
 
-    if page == "Dashboard":
-        dashboard_page()
-    elif page == "Configurações":
-        settings_page()
+        if page == "Dashboard":
+            dashboard_page(model_path, metrics_path)
+        elif page == "Configurações":
+            settings_page(model_path, metrics_path)
+        
+        if st.sidebar.button("Logout"):
+            st.session_state['authentication_status'] = False
+            st.session_state['username'] = None
+            st.rerun()
+    else:
+        if st.session_state.get('page', 'login') == 'login':
+            login_page()
+        else:
+            registration_page()
 
 if __name__ == "__main__":
     main()

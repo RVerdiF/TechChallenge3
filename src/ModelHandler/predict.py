@@ -4,10 +4,7 @@ import os
 import json
 from pathlib import Path
 
-MODEL_PATH = Path('src/ModelHandler/lgbm_model.pkl')
-METRICS_PATH = Path('src/ModelHandler/metrics.json')
-
-def make_prediction(input_data):
+def make_prediction(input_data, model_path):
     """
     Faz previsão usando o modelo salvo.
     
@@ -17,14 +14,15 @@ def make_prediction(input_data):
     Returns:
         tuple: (Previsão, Confiança)
     """
-    if not os.path.exists(MODEL_PATH):
+    if not os.path.exists(model_path):
         raise FileNotFoundError("Modelo não encontrado. Execute o treinamento primeiro.")
     
     # Carrega modelo
-    model = joblib.load(MODEL_PATH)
+    model = joblib.load(model_path)
     
     # Carrega lista de features do treinamento
-    with open(METRICS_PATH, 'r') as f:
+    metrics_path = model_path.parent / 'metrics.json'
+    with open(metrics_path, 'r') as f:
         metrics = json.load(f)
     feature_cols = metrics['features']
     
