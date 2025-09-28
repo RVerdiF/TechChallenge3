@@ -9,12 +9,15 @@ from sklearn.metrics import accuracy_score, f1_score, confusion_matrix
 import src.DataHandler.data_handler as data_handler
 import src.DataHandler.feature_engineering as feature_engineering
 
-def train_and_save_model(feature_params={}, model_params={}, model_path=None, metrics_path=None):
+def train_and_save_model(feature_params={}, model_params={}, model_path=None, metrics_path=None, start_date=None, end_date=None):
     """Treina o modelo de ML, salva em arquivo e salva as métricas."""
     
     # Carrega dados
     print("Carregando dados...")
     df = data_handler.load_data()
+    
+    if start_date and end_date:
+        df = df.loc[start_date:end_date]
     
     if df.empty:
         print("Nenhum dado encontrado. Execute primeiro a coleta de dados.")

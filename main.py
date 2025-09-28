@@ -1,8 +1,10 @@
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.figure_factory as ff
 import json
+import joblib
 from datetime import datetime, timedelta
 from pathlib import Path
 import src.ApiHandler.data_api as data_api
@@ -11,6 +13,7 @@ import src.DataHandler.feature_engineering as feature_engineering
 import src.ModelHandler.predict as predict
 import src.ModelHandler.train_model as train_model
 from src.AuthHandler import auth
+from src.BacktestHandler import backtesting
 
 st.set_page_config(page_title="Dashboard BTC", layout="wide")
 
@@ -178,6 +181,13 @@ def settings_page(model_path, metrics_path):
             macd_slow = st.number_input("MACD Lento", min_value=1, value=feature_params_saved.get('macd_slow', 26), key="macd_slow")
             macd_signal = st.number_input("MACD Sinal", min_value=1, value=feature_params_saved.get('macd_signal', 9), key="macd_signal")
 
+    st.subheader("Período de Treinamento")
+    col1, col2 = st.columns(2)
+    with col1:
+        train_start_date = st.date_input("Data de Início do Treinamento", value=datetime.now() - timedelta(days=365*2))
+    with col2:
+        train_end_date = st.date_input("Data de Fim do Treinamento", value=datetime.now())
+
     if st.button("Treinar Modelo"):
         with st.spinner("Treinando modelo..."):
             try:
@@ -203,7 +213,14 @@ def settings_page(model_path, metrics_path):
                 }
                 save_config({"model_params": model_params, "feature_params": feature_params})
                 
-                train_model.train_and_save_model(feature_params=feature_params, model_params=model_params, model_path=model_path, metrics_path=metrics_path)
+                train_model.train_and_save_model(
+                    feature_params=feature_params, 
+                    model_params=model_params, 
+                    model_path=model_path, 
+                    metrics_path=metrics_path,
+                    start_date=train_start_date,
+                    end_date=train_end_date
+                )
                 st.success("Modelo treinado com sucesso!")
             except Exception as e:
                 st.error(f"Erro ao treinar: {e}")
@@ -230,6 +247,61 @@ def settings_page(model_path, metrics_path):
             st.warning("Métricas não encontradas. Treine o modelo para gerá-las.")
     else:
         st.warning("Métricas não encontradas. Treine o modelo para gerá-las.")
+
+def backtesting_page(model_path, metrics_path):
+    st.title("Backtesting de Estratégia")
+
+    if not model_path.exists() or not metrics_path.exists():
+        st.warning("Modelo ou métricas não encontrados. Treine um modelo primeiro na página de Configurações.")
+        return
+
+    st.subheader("Período do Backtest")
+    col1, col2 = st.columns(2)
+    with col1:
+        backtest_start_date = st.date_input("Data de Início do Backtest", value=datetime.now() - timedelta(days=365))
+    with col2:
+        backtest_end_date = st.date_input("Data de Fim do Backtest", value=datetime.now())
+
+    if st.button("Iniciar Backtest", type="primary"):
+        with st.spinner("Executando backtest... Isso pode levar alguns minutos."):
+            try:
+                model = joblib.load(model_path)
+                with open(metrics_path, "r") as f:
+                    metrics = json.load(f)
+                
+                feature_cols = metrics.get("features")
+                feature_params = metrics.get("feature_params")
+
+                if not feature_cols or not feature_params:
+                    st.error("Informações de features não encontradas nas métricas. Treine o modelo novamente.")
+                    return
+
+                df = data_handler.load_data()
+                df_features = feature_engineering.create_features(df, params=feature_params)
+
+                results, trades_history = backtesting.run_backtest(
+                    df_features, 
+                    model, 
+                    feature_cols, 
+                    start_date=backtest_start_date, 
+                    end_date=backtest_end_date
+                )
+
+                st.subheader("Resultados do Backtest")
+                col1, col2, col3, col4 = st.columns(4)
+                col1.metric("Retorno Total da Estratégia", f"{results['total_return_pct']:.2f}%")
+                col2.metric("Retorno Buy & Hold", f"{results['buy_and_hold_return_pct']:.2f}%")
+                col3.metric("Total de Operações", results['total_trades'])
+                col4.metric("Taxa de Acerto (Win Rate)", f"{results['win_rate']:.2f}%")
+
+                st.subheader("Evolução do Portfólio")
+                st.line_chart(results['portfolio_history'])
+
+                st.subheader("Histórico de Operações")
+                st.dataframe(trades_history)
+
+            except Exception as e:
+                st.error(f"Ocorreu um erro durante o backtest: {e}")
 
 def login_page():
     st.title("Login")
@@ -270,12 +342,14 @@ def main():
         model_path, metrics_path = get_user_paths(username)
 
         st.sidebar.title(f"Bem-vindo, {username}")
-        page = st.sidebar.radio("Selecione uma página", ["Dashboard", "Configurações"])
+        page = st.sidebar.radio("Selecione uma página", ["Dashboard", "Configurações", "Backtesting"])
 
         if page == "Dashboard":
             dashboard_page(model_path, metrics_path)
         elif page == "Configurações":
             settings_page(model_path, metrics_path)
+        elif page == "Backtesting":
+            backtesting_page(model_path, metrics_path)
         
         if st.sidebar.button("Logout"):
             st.session_state['authentication_status'] = False
