@@ -55,6 +55,47 @@ def save_data(df):
     
     conn.close()
 
+def update_data(df, start_date, end_date):
+    """
+    Atualiza dados no banco para o período especificado, substituindo dados existentes.
+    
+    Args:
+        df (pd.DataFrame): DataFrame com dados de preços
+        start_date (str): Data inicial no formato 'YYYY-MM-DD'
+        end_date (str): Data final no formato 'YYYY-MM-DD'
+    """
+    if df.empty:
+        return
+    
+    init_database()
+    conn = sqlite3.connect(DB_PATH)
+    
+    # Remove dados existentes no período
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM prices WHERE date >= ? AND date <= ?", (start_date, end_date))
+    
+    # Insere novos dados
+    df_copy = df.copy()
+    df_copy.index = df_copy.index.strftime('%Y-%m-%d')
+    df_copy.columns = [col.lower() for col in df_copy.columns]
+    df_copy.to_sql('prices', conn, if_exists='append', index_label='date')
+    
+    conn.commit()
+    conn.close()
+    logger.info(f"Dados atualizados para o período {start_date} a {end_date}: {len(df)} registros.")
+
+def drop_table():
+    """
+    Remove todos os dados da tabela prices.
+    """
+    init_database()
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM prices")
+    conn.commit()
+    conn.close()
+    logger.info("Tabela prices limpa completamente.")
+
 def load_data():
     """
     Carrega todos os dados da tabela prices.

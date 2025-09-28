@@ -5,7 +5,7 @@ import plotly.express as px
 import plotly.figure_factory as ff
 import json
 import joblib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from pathlib import Path
 import src.ApiHandler.data_api as data_api
 import src.DataHandler.data_handler as data_handler
@@ -66,16 +66,39 @@ def save_config(config):
 def dashboard_page(model_path, metrics_path):
     st.title("Dashboard de Previsão de Preço do BTC")
 
-    if st.button("Atualizar Dados"):
-        with st.spinner("Atualizando dados..."):
-            end_date = datetime.now().strftime("%Y-%m-%d")
-            start_date = (datetime.now() - timedelta(days=1095)).strftime("%Y-%m-%d")
-            df = data_api.get_btc_data(start_date=start_date, end_date=end_date)
-            if not df.empty:
-                data_handler.save_data(df)
-                st.success("Dados atualizados!")
-            else:
-                st.error("Erro ao atualizar dados")
+    # Carrega dados para obter data mínima
+    df_temp = data_handler.load_data()
+    min_date = df_temp.index.min().date() if not df_temp.empty else date(2009, 1, 3)
+
+    # Controles de data para atualização
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col1:
+        start_date = st.date_input(
+            "Data Inicial",
+            value=min_date,
+            max_value=datetime.now().date()
+        )
+    with col2:
+        end_date = st.date_input(
+            "Data Final",
+            value=datetime.now().date(),
+            max_value=datetime.now().date()
+        )
+    with col3:
+        st.write("")
+        st.write("")
+        if st.button("Atualizar Dados"):
+            with st.spinner("Atualizando dados..."):
+                data_handler.drop_table()
+                df = data_api.get_btc_data(
+                    start_date=start_date.strftime("%Y-%m-%d"),
+                    end_date=end_date.strftime("%Y-%m-%d")
+                )
+                if not df.empty:
+                    data_handler.save_data(df)
+                    st.success("Dados atualizados!")
+                else:
+                    st.error("Erro ao atualizar dados")
 
     df = data_handler.load_data()
     if df.empty:
@@ -147,6 +170,10 @@ def dashboard_page(model_path, metrics_path):
 def settings_page(model_path, metrics_path):
     st.title("Configurações")
     
+    # Carrega dados para obter data mínima
+    df_temp = data_handler.load_data()
+    min_date = df_temp.index.min().date() if not df_temp.empty else date(2009, 1, 3)
+    
     config = load_config()
     model_params_saved = config.get("model_params", {})
     feature_params_saved = config.get("feature_params", {})
@@ -184,7 +211,7 @@ def settings_page(model_path, metrics_path):
     st.subheader("Período de Treinamento")
     col1, col2 = st.columns(2)
     with col1:
-        train_start_date = st.date_input("Data de Início do Treinamento", value=datetime.now() - timedelta(days=365*2))
+        train_start_date = st.date_input("Data de Início do Treinamento", value=min_date)
     with col2:
         train_end_date = st.date_input("Data de Fim do Treinamento", value=datetime.now())
 
@@ -255,10 +282,14 @@ def backtesting_page(model_path, metrics_path):
         st.warning("Modelo ou métricas não encontrados. Treine um modelo primeiro na página de Configurações.")
         return
 
+    # Carrega dados para obter data mínima
+    df_temp = data_handler.load_data()
+    min_date = df_temp.index.min().date() if not df_temp.empty else date(2009, 1, 3)
+
     st.subheader("Período do Backtest")
     col1, col2 = st.columns(2)
     with col1:
-        backtest_start_date = st.date_input("Data de Início do Backtest", value=datetime.now() - timedelta(days=365))
+        backtest_start_date = st.date_input("Data de Início do Backtest", value=min_date)
     with col2:
         backtest_end_date = st.date_input("Data de Fim do Backtest", value=datetime.now())
 
