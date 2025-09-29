@@ -9,10 +9,16 @@ Projeto de previsão de preço do Bitcoin usando Machine Learning com arquitetur
 ├── src/
 │   ├── ApiHandler/
 │   │   └── data_api.py          # Coleta de dados via yfinance
+│   ├── AuthHandler/
+│   │   └── auth.py              # Gerenciamento de autenticação de usuários
+│   ├── BacktestHandler/
+│   │   └── backtesting.py       # Lógica para backtesting de estratégias
 │   ├── DataHandler/
 │   │   ├── data_handler.py      # Gerenciamento de dados SQLite
 │   │   ├── feature_engineering.py # Criação de features
 │   │   └── btc_prices.db        # Banco de dados SQLite
+│   ├── LogHandler/
+│   │   └── log_config.py        # Configuração de logs
 │   ├── ModelHandler/
 │   │   ├── train_model.py       # Treinamento do modelo
 │   │   ├── predict.py           # Previsões
@@ -20,6 +26,10 @@ Projeto de previsão de preço do Bitcoin usando Machine Learning com arquitetur
 │   │   └── metrics.json         # Métricas e features do modelo
 │   └── Orchestration/
 │       └── run_project.py       # Script de configuração inicial
+├── user_data/
+│   └── <username>/
+│       ├── lgbm_model.pkl       # Modelo treinado do usuário
+│       └── metrics.json         # Métricas e parâmetros do modelo
 ├── main.py                      # Interface Streamlit
 ├── requirements.txt             # Dependências do projeto
 └── README.md                    # Documentação
@@ -83,9 +93,18 @@ streamlit run main.py
 ### ApiHandler
 - `data_api.py`: Interface com Yahoo Finance para coleta de dados.
 
+### AuthHandler
+- `auth.py`: Gerenciamento de autenticação de usuários.
+
+### BacktestHandler
+- `backtesting.py`: Lógica para backtesting de estratégias.
+
 ### DataHandler  
 - `data_handler.py`: Operações CRUD no banco SQLite.
 - `feature_engineering.py`: Cálculo de indicadores técnicos e outras features.
+
+### LogHandler
+- `log_config.py`: Configuração de logs.
 
 ### ModelHandler
 - `train_model.py`: Pipeline de treinamento com validação temporal. Salva o modelo e um JSON com métricas e a lista de features.
@@ -103,6 +122,7 @@ streamlit run main.py
 - **joblib**: Serialização do modelo
 - **streamlit**: Interface web
 - **plotly**: Visualizações interativas
+- **tqdm**: Barras de progresso.
 
 ## Notas Técnicas
 
