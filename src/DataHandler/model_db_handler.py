@@ -8,6 +8,8 @@ from pathlib import Path
 # Define o caminho para o banco de dados no mesmo diretório
 DB_PATH = Path(__file__).parent / "models.db"
 
+from stable_baselines3 import PPO
+
 def init_db():
     """Inicializa o banco de dados e cria as tabelas se não existirem."""
     with sqlite3.connect(DB_PATH) as conn:
@@ -28,7 +30,45 @@ def init_db():
                 feature_params_json TEXT NOT NULL
             )
         """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS rl_models (
+                model_name TEXT PRIMARY KEY,
+                model_blob BLOB NOT NULL,
+                updated_at TIMESTAMP NOT NULL
+            )
+        """)
         conn.commit()
+
+def save_rl_model(model, model_name: str = "default_ppo"):
+    """Serializa e salva um modelo de RL no banco de dados."""
+    buffer = io.BytesIO()
+    model.save(buffer)
+    buffer.seek(0)
+    model_blob = buffer.read()
+
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT OR REPLACE INTO rl_models (model_name, model_blob, updated_at)
+            VALUES (?, ?, ?)
+        """, (model_name, model_blob, datetime.now()))
+        conn.commit()
+
+def load_rl_model(model_name: str = "default_ppo"):
+    """Carrega e desserializa um modelo de RL do banco de dados."""
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT model_blob FROM rl_models WHERE model_name = ?", (model_name,))
+        row = cursor.fetchone()
+
+        if row:
+            model_blob = row[0]
+            buffer = io.BytesIO(model_blob)
+            # É importante usar a mesma classe de modelo (PPO) que foi salva
+            model = PPO.load(buffer)
+            return model
+        else:
+            return None
 
 def save_model(username: str, model_object, metrics_dict: dict, feature_params: dict):
     """Serializa e salva o modelo, métricas e parâmetros de features do usuário no banco de dados."""

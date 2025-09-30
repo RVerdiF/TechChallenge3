@@ -252,6 +252,19 @@ def settings_page(username):
                 logger.error(f"Error during training for user '{username}': {e}", exc_info=True)
                 st.error(f"Erro durante o treinamento: {e}")
 
+    st.subheader("Treinamento de Aprendizado por Reforço (RL)")
+    st.info("Esta seção treina um agente de RL para aprender uma política de negociação. O processo pode ser demorado e os logs de treinamento aparecerão no console que executa a aplicação.")
+    if st.button("Treinar Modelo de RL"):
+        logger.info(f"User '{username}' clicked 'Train RL Model'.")
+        with st.spinner("Treinando modelo de RL... Isso pode levar vários minutos."):
+            try:
+                from src.ModelHandler.train_rl_model import train_rl_model
+                train_rl_model()
+                st.success("Modelo de RL treinado e salvo com sucesso!")
+            except Exception as e:
+                logger.error(f"Error during RL training for user '{username}': {e}", exc_info=True)
+                st.error(f"Erro durante o treinamento de RL: {e}")
+
     _, metrics = model_db_handler.load_model(username)
     if metrics:
         st.subheader("Métricas do Modelo Atual")
