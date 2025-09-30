@@ -110,6 +110,23 @@ A aplicação irá pedir para criar um usuário e senha. Após o login, o dashbo
 - **Treinamento Customizado**: Interface para ajustar parâmetros de features e do modelo, e treinar um novo modelo para o usuário logado.
 - **Backtesting**: Página para simular uma estratégia de trading baseada no modelo treinado e visualizar os resultados.
 
+## Fluxos da Aplicação
+
+### Fluxo Principal
+![Fluxo Principal da Aplicação](imgs/Main%20Application%20Flow.jpg)
+
+### Fluxo de Atualização de Dados (Dashboard)
+![Fluxo de Atualização de Dados](imgs/Data%20Update%20Flow%20(Dashboard).jpg)
+
+### Fluxo de Predição (Dashboard)
+![Fluxo de Predição](imgs/Prediction%20Flow%20(Dashboard).jpg)
+
+### Fluxo de Treinamento (Configurações)
+![Fluxo de Treinamento](imgs/Training%20Flow%20(Settings).jpg)
+
+### Fluxo de Backtesting
+![Fluxo de Backtesting](imgs/Backtesting%20Flow%20(Backtesting).jpg)
+
 ## Arquitetura Modular
 
 ### `main.py`
