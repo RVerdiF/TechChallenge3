@@ -17,7 +17,7 @@ from src.AuthHandler import auth
 from src.BacktestHandler import backtesting
 from src.config import CONFIG_FILE, USER_DATA_DIR
 
-st.set_page_config(page_title="Dashboard BTC", layout="wide")
+st.set_page_config(page_title="BTC Dashboard", layout="wide")
 
 logger = get_logger(__name__)
 
@@ -32,12 +32,12 @@ def get_user_paths(username):
     return model_path, metrics_path
 
 def load_config():
-    """Carrega a configuração do arquivo JSON."""
+    """Loads the configuration from the JSON file."""
     if CONFIG_PATH.exists():
         with open(CONFIG_PATH, "r") as f:
             return json.load(f)
     else:
-        # Valores padrão
+        # Default values
         return {
             "model_params": {
                 'n_estimators': 100,
@@ -62,38 +62,38 @@ def load_config():
         }
 
 def save_config(config):
-    """Salva a configuração em um arquivo JSON."""
+    """Saves the configuration to a JSON file."""
     with open(CONFIG_PATH, "w") as f:
         json.dump(config, f, indent=4)
 
 def dashboard_page(model_path, metrics_path):
     logger.info("Displaying dashboard page.")
-    st.title("Dashboard de Previsão de Preço do BTC")
+    st.title("BTC Price Prediction Dashboard")
 
-    # Carrega dados para obter data mínima
+    # Load data to get the minimum date
     df_temp = data_handler.load_data()
     min_date = df_temp.index.min().date() if not df_temp.empty else date(2009, 1, 3)
 
-    # Controles de data para atualização
+    # Date controls for update
     col1, col2, col3 = st.columns([1, 1, 1])
     with col1:
         start_date = st.date_input(
-            "Data Inicial",
+            "Start Date",
             value=min_date,
             max_value=datetime.now().date()
         )
     with col2:
         end_date = st.date_input(
-            "Data Final",
+            "End Date",
             value=datetime.now().date(),
             max_value=datetime.now().date()
         )
     with col3:
         st.write("")
         st.write("")
-        if st.button("Atualizar Dados"):
-            logger.info("User clicked 'Atualizar Dados'.")
-            with st.spinner("Atualizando dados..."):
+        if st.button("Update Data"):
+            logger.info("User clicked 'Update Data'.")
+            with st.spinner("Updating data..."):
                 data_handler.drop_table()
                 df = data_api.get_btc_data(
                     start_date=start_date.strftime("%Y-%m-%d"),
@@ -101,13 +101,13 @@ def dashboard_page(model_path, metrics_path):
                 )
                 if not df.empty:
                     data_handler.save_data(df)
-                    st.success("Dados atualizados!")
+                    st.success("Data updated!")
                 else:
-                    st.error("Erro ao atualizar dados")
+                    st.error("Error updating data")
 
     df = data_handler.load_data()
     if df.empty:
-        st.warning("Nenhum dado encontrado. Clique em 'Atualizar Dados' para começar.")
+        st.warning("No data found. Click 'Update Data' to get started.")
         return
 
     config = load_config()
@@ -115,69 +115,69 @@ def dashboard_page(model_path, metrics_path):
 
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("Preço Atual", f"${df['Close'].iloc[-1]:,.2f}")
+        st.metric("Current Price", f"${df['Close'].iloc[-1]:,.2f}")
     with col2:
         change = df['Close'].iloc[-1] - df['Close'].iloc[-2]
         changepct = (change / df['Close'].iloc[-2]) * 100
-        st.metric("Variação Diária", f"${change:,.2f}", f"%{changepct:+.2f}")
+        st.metric("Daily Change", f"${change:,.2f}", f"%{changepct:+.2f}")
     with col3:
-        st.metric("Máximo (30d)", f"${df['High'].tail(30).max():,.2f}")
+        st.metric("30d High", f"${df['High'].tail(30).max():,.2f}")
     with col4:
-        st.metric("Mínimo (30d)", f"${df['Low'].tail(30).min():,.2f}")
+        st.metric("30d Low", f"${df['Low'].tail(30).min():,.2f}")
 
-    st.subheader("Previsão para Amanhã")
-    if st.button("Gerar Previsão para Amanhã", type="primary"):
-        logger.info("User clicked 'Gerar Previsão para Amanhã'.")
+    st.subheader("Tomorrow's Forecast")
+    if st.button("Generate Tomorrow's Forecast", type="primary"):
+        logger.info("User clicked 'Generate Tomorrow's Forecast'.")
         try:
-            with st.spinner("Gerando previsão..."):
+            with st.spinner("Generating forecast..."):
                 df_features = feature_engineering.create_features(df, params=feature_params)
                 if df_features.empty:
-                    st.error("Dados insuficientes para gerar previsão")
+                    st.error("Insufficient data to generate forecast")
                     return
                 prediction, confidence = predict.make_prediction(df_features, model_path)
                 if prediction == 1:
-                    st.success(f"### Tendência para amanhã: **ALTA** 📈 (Confiança: {confidence:.2%})")
+                    st.success(f"### Trend for tomorrow: **UP** 📈 (Confidence: {confidence:.2%})")
                 else:
-                    st.error(f"### Tendência para amanhã: **QUEDA** 📉 (Confiança: {confidence:.2%})")
+                    st.error(f"### Trend for tomorrow: **DOWN** 📉 (Confidence: {confidence:.2%})")
         except FileNotFoundError:
-            st.error("Modelo não encontrado. Execute o treinamento primeiro.")
+            st.error("Model not found. Please train the model first.")
         except Exception as e:
-            st.error(f"Erro ao gerar previsão: {e}")
+            st.error(f"Error generating forecast: {e}")
 
-    st.subheader("Histórico de Preços do Bitcoin")
+    st.subheader("Bitcoin Price History")
     
-    period = st.radio("Selecione o período", ["1 mês", "3 meses", "1 ano", "Tudo"], index=3, horizontal=True)
+    period = st.radio("Select period", ["1 month", "3 months", "1 year", "All"], index=3, horizontal=True)
 
-    if period != "Tudo":
+    if period != "All":
         end_date = df.index.max()
-        if period == "1 mês":
+        if period == "1 month":
             start_date = end_date - pd.DateOffset(months=1)
-        elif period == "3 meses":
+        elif period == "3 months":
             start_date = end_date - pd.DateOffset(months=3)
-        else: # 1 ano
+        else: # 1 year
             start_date = end_date - pd.DateOffset(years=1)
         df_filtered = df[df.index >= start_date]
     else:
         df_filtered = df
 
-    fig = px.line(df_filtered.reset_index(), x='date', y='Close', title="Preço de Fechamento do BTC (USD)", labels={'date': 'Data', 'Close': 'Preço (USD)'})
+    fig = px.line(df_filtered.reset_index(), x='date', y='Close', title="BTC Close Price (USD)", labels={'date': 'Date', 'Close': 'Price (USD)'})
     fig.update_layout(height=500)
     st.plotly_chart(fig, use_container_width=True)
 
-    with st.expander("Informações do Dataset"):
-        st.write(f"**Período dos dados:** {df.index.min().strftime('%Y-%m-%d')} até {df.index.max().strftime('%Y-%m-%d')}")
-        st.write(f"**Total de registros:** {len(df)}")
-        st.write("**Colunas:** Open, High, Low, Close, Volume")
+    with st.expander("Dataset Information"):
+        st.write(f"**Data period:** {df.index.min().strftime('%Y-%m-%d')} to {df.index.max().strftime('%Y-%m-%d')}")
+        st.write(f"**Total records:** {len(df)}")
+        st.write("**Columns:** Open, High, Low, Close, Volume")
         if metrics_path.exists():
             with open(metrics_path, "r") as f:
                 metrics = json.load(f)
-                st.write("**Indicadores do Modelo:**", ", ".join(metrics.get("features", [])))
+                st.write("**Model Indicators:**", ", ".join(metrics.get("features", [])))
 
 def settings_page(model_path, metrics_path):
     logger.info("Displaying settings page.")
-    st.title("Configurações")
+    st.title("Settings")
     
-    # Carrega dados para obter data mínima
+    # Load data to get the minimum date
     df_temp = data_handler.load_data()
     min_date = df_temp.index.min().date() if not df_temp.empty else date(2009, 1, 3)
     
@@ -185,46 +185,46 @@ def settings_page(model_path, metrics_path):
     model_params_saved = config.get("model_params", {})
     feature_params_saved = config.get("feature_params", {})
 
-    with st.expander("Parâmetros de Treinamento do Modelo", expanded=True):
+    with st.expander("Model Training Parameters", expanded=True):
         col1, col2 = st.columns(2)
         with col1:
-            n_estimators = st.number_input("Número de Estimadores", min_value=1, value=model_params_saved.get('n_estimators', 100), key="n_estimators", help="Número de árvores de decisão no modelo. Mais árvores podem melhorar a precisão, mas também aumentam o tempo de treinamento.")
-            max_depth = st.number_input("Profundidade Máxima", min_value=-1, value=model_params_saved.get('max_depth', -1), key="max_depth", help="Profundidade máxima de cada árvore. Um valor maior pode capturar padrões mais complexos, mas também pode levar a overfitting. -1 significa sem limite.")
-            reg_alpha = st.number_input("Regularização L1 (Alpha)", min_value=0.0, value=model_params_saved.get('reg_alpha', 0.0), step=0.01, key="reg_alpha", help="Termo de regularização L1. Ajuda a prevenir overfitting, penalizando pesos grandes. Útil quando há muitas features.")
+            n_estimators = st.number_input("Number of Estimators", min_value=1, value=model_params_saved.get('n_estimators', 100), key="n_estimators", help="Number of decision trees in the model. More trees can improve accuracy but also increase training time.")
+            max_depth = st.number_input("Maximum Depth", min_value=-1, value=model_params_saved.get('max_depth', -1), key="max_depth", help="Maximum depth of each tree. A larger value can capture more complex patterns but may also lead to overfitting. -1 means no limit.")
+            reg_alpha = st.number_input("L1 Regularization (Alpha)", min_value=0.0, value=model_params_saved.get('reg_alpha', 0.0), step=0.01, key="reg_alpha", help="L1 regularization term. Helps prevent overfitting by penalizing large weights. Useful when there are many features.")
         with col2:
-            learning_rate = st.number_input("Taxa de Aprendizagem", min_value=0.01, value=model_params_saved.get('learning_rate', 0.1), step=0.01, key="learning_rate", help="Taxa de aprendizado. Um valor menor torna o aprendizado mais robusto, mas exige mais árvores (n_estimators).")
-            num_leaves = st.number_input("Número de Folhas", min_value=2, value=model_params_saved.get('num_leaves', 31), key="num_leaves", help="Número máximo de folhas em uma árvore. Um valor maior aumenta a complexidade do modelo.")
-            reg_lambda = st.number_input("Regularização L2 (Lambda)", min_value=0.0, value=model_params_saved.get('reg_lambda', 0.0), step=0.01, key="reg_lambda", help="Termo de regularização L2. Também ajuda a prevenir overfitting, de forma semelhante ao L1.")
+            learning_rate = st.number_input("Learning Rate", min_value=0.01, value=model_params_saved.get('learning_rate', 0.1), step=0.01, key="learning_rate", help="Learning rate. A smaller value makes learning more robust but requires more trees (n_estimators).")
+            num_leaves = st.number_input("Number of Leaves", min_value=2, value=model_params_saved.get('num_leaves', 31), key="num_leaves", help="Maximum number of leaves in a tree. A larger value increases model complexity.")
+            reg_lambda = st.number_input("L2 Regularization (Lambda)", min_value=0.0, value=model_params_saved.get('reg_lambda', 0.0), step=0.01, key="reg_lambda", help="L2 regularization term. Also helps prevent overfitting, similar to L1.")
 
-    with st.expander("Parâmetros dos Indicadores Técnicos", expanded=True):
+    with st.expander("Technical Indicator Parameters", expanded=True):
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.subheader("Médias Móveis")
-            sma_short = st.number_input("SMA Curta", min_value=1, value=feature_params_saved.get('sma_window_1', 10), key="sma_short")
-            sma_long = st.number_input("SMA Longa", min_value=1, value=feature_params_saved.get('sma_window_2', 30), key="sma_long")
-            ema_short = st.number_input("EMA Curta", min_value=1, value=feature_params_saved.get('ema_window_1', 12), key="ema_short")
-            ema_long = st.number_input("EMA Longa", min_value=1, value=feature_params_saved.get('ema_window_2', 26), key="ema_long")
+            st.subheader("Moving Averages")
+            sma_short = st.number_input("Short SMA", min_value=1, value=feature_params_saved.get('sma_window_1', 10), key="sma_short")
+            sma_long = st.number_input("Long SMA", min_value=1, value=feature_params_saved.get('sma_window_2', 30), key="sma_long")
+            ema_short = st.number_input("Short EMA", min_value=1, value=feature_params_saved.get('ema_window_1', 12), key="ema_short")
+            ema_long = st.number_input("Long EMA", min_value=1, value=feature_params_saved.get('ema_window_2', 26), key="ema_long")
         with col2:
-            st.subheader("Osciladores")
-            rsi_period = st.number_input("Período RSI", min_value=1, value=feature_params_saved.get('rsi_window', 14), key="rsi_period")
-            stochastic_window = st.number_input("Janela Estocástico", min_value=1, value=feature_params_saved.get('stochastic_window', 14), key="stochastic_window")
-            bollinger_window = st.number_input("Janela Bollinger", min_value=1, value=feature_params_saved.get('bollinger_window', 20), key="bollinger_window")
+            st.subheader("Oscillators")
+            rsi_period = st.number_input("RSI Period", min_value=1, value=feature_params_saved.get('rsi_window', 14), key="rsi_period")
+            stochastic_window = st.number_input("Stochastic Window", min_value=1, value=feature_params_saved.get('stochastic_window', 14), key="stochastic_window")
+            bollinger_window = st.number_input("Bollinger Window", min_value=1, value=feature_params_saved.get('bollinger_window', 20), key="bollinger_window")
         with col3:
             st.subheader("MACD")
-            macd_fast = st.number_input("MACD Rápido", min_value=1, value=feature_params_saved.get('macd_fast', 12), key="macd_fast")
-            macd_slow = st.number_input("MACD Lento", min_value=1, value=feature_params_saved.get('macd_slow', 26), key="macd_slow")
-            macd_signal = st.number_input("MACD Sinal", min_value=1, value=feature_params_saved.get('macd_signal', 9), key="macd_signal")
+            macd_fast = st.number_input("Fast MACD", min_value=1, value=feature_params_saved.get('macd_fast', 12), key="macd_fast")
+            macd_slow = st.number_input("Slow MACD", min_value=1, value=feature_params_saved.get('macd_slow', 26), key="macd_slow")
+            macd_signal = st.number_input("Signal MACD", min_value=1, value=feature_params_saved.get('macd_signal', 9), key="macd_signal")
 
-    st.subheader("Período de Treinamento")
+    st.subheader("Training Period")
     col1, col2 = st.columns(2)
     with col1:
-        train_start_date = st.date_input("Data de Início do Treinamento", value=min_date)
+        train_start_date = st.date_input("Training Start Date", value=min_date)
     with col2:
-        train_end_date = st.date_input("Data de Fim do Treinamento", value=datetime.now())
+        train_end_date = st.date_input("Training End Date", value=datetime.now())
 
-    if st.button("Treinar Modelo"):
-        logger.info("User clicked 'Treinar Modelo'.")
-        with st.spinner("Treinando modelo..."):
+    if st.button("Train Model"):
+        logger.info("User clicked 'Train Model'.")
+        with st.spinner("Training model..."):
             try:
                 model_params = {
                     'n_estimators': n_estimators,
@@ -256,9 +256,9 @@ def settings_page(model_path, metrics_path):
                     start_date=train_start_date,
                     end_date=train_end_date
                 )
-                st.success("Modelo treinado com sucesso!")
+                st.success("Model trained successfully!")
             except Exception as e:
-                st.error(f"Erro ao treinar: {e}")
+                st.error(f"Error during training: {e}")
 
     if metrics_path.exists():
         with open(metrics_path, "r") as f:
@@ -266,45 +266,45 @@ def settings_page(model_path, metrics_path):
         if metrics:
             col1, col2 = st.columns(2)
             with col1:
-                st.metric("Acurácia", f"{metrics.get('accuracy', 0):.2%}")
+                st.metric("Accuracy", f"{metrics.get('accuracy', 0):.2%}")
             with col2:
                 st.metric("F1-Score", f"{metrics.get('f1_score', 0):.2%}")
-            with st.expander("Matriz de Confusão"):
+            with st.expander("Confusion Matrix"):
                 conf_matrix = metrics.get("confusion_matrix")
                 if conf_matrix:
                     z = conf_matrix
-                    x = ['Queda', 'Alta']
-                    y = ['Queda', 'Alta']
+                    x = ['Down', 'Up']
+                    y = ['Down', 'Up']
                     fig_cm = ff.create_annotated_heatmap(z, x=x, y=y, colorscale='Blues', showscale=True)
-                    fig_cm.update_layout(title='Matriz de Confusão')
+                    fig_cm.update_layout(title='Confusion Matrix')
                     st.plotly_chart(fig_cm, use_container_width=True, key="confusion_matrix_chart")
         else:
-            st.warning("Métricas não encontradas. Treine o modelo para gerá-las.")
+            st.warning("Metrics not found. Train the model to generate them.")
     else:
-        st.warning("Métricas não encontradas. Treine o modelo para gerá-las.")
+        st.warning("Metrics not found. Train the model to generate them.")
 
 def backtesting_page(model_path, metrics_path):
     logger.info("Displaying backtesting page.")
-    st.title("Backtesting de Estratégia")
+    st.title("Strategy Backtesting")
 
     if not model_path.exists() or not metrics_path.exists():
-        st.warning("Modelo ou métricas não encontrados. Treine um modelo primeiro na página de Configurações.")
+        st.warning("Model or metrics not found. Train a model first on the Settings page.")
         return
 
-    # Carrega dados para obter data mínima
+    # Load data to get the minimum date
     df_temp = data_handler.load_data()
     min_date = df_temp.index.min().date() if not df_temp.empty else date(2009, 1, 3)
 
-    st.subheader("Período do Backtest")
+    st.subheader("Backtest Period")
     col1, col2 = st.columns(2)
     with col1:
-        backtest_start_date = st.date_input("Data de Início do Backtest", value=min_date)
+        backtest_start_date = st.date_input("Backtest Start Date", value=min_date)
     with col2:
-        backtest_end_date = st.date_input("Data de Fim do Backtest", value=datetime.now())
+        backtest_end_date = st.date_input("Backtest End Date", value=datetime.now())
 
-    if st.button("Iniciar Backtest", type="primary"):
-        logger.info("User clicked 'Iniciar Backtest'.")
-        with st.spinner("Executando backtest... Isso pode levar alguns minutos."):
+    if st.button("Start Backtest", type="primary"):
+        logger.info("User clicked 'Start Backtest'.")
+        with st.spinner("Running backtest... This may take a few minutes."):
             try:
                 model = joblib.load(model_path)
                 with open(metrics_path, "r") as f:
@@ -314,7 +314,7 @@ def backtesting_page(model_path, metrics_path):
                 feature_params = metrics.get("feature_params")
 
                 if not feature_cols or not feature_params:
-                    st.error("Informações de features não encontradas nas métricas. Treine o modelo novamente.")
+                    st.error("Feature information not found in metrics. Please train the model again.")
                     return
 
                 df = data_handler.load_data()
@@ -328,35 +328,35 @@ def backtesting_page(model_path, metrics_path):
                     end_date=backtest_end_date
                 )
 
-                st.subheader("Resultados do Backtest")
+                st.subheader("Backtest Results")
                 col1, col2, col3 = st.columns(3)
-                col1.metric("Retorno Total da Estratégia", f"{results['total_return_pct']:.2f}%")
-                col1.metric("Retorno Buy & Hold", f"{results['buy_and_hold_return_pct']:.2f}%")
+                col1.metric("Total Strategy Return", f"{results['total_return_pct']:.2f}%")
+                col1.metric("Buy & Hold Return", f"{results['buy_and_hold_return_pct']:.2f}%")
                 col2.metric("Sharpe Ratio", f"{results['sharpe_ratio']:.2f}")
                 col2.metric("Max Drawdown", f"{results['max_drawdown']:.2%}")
-                col3.metric("Total de Operações", results['total_trades'])
-                col3.metric("Taxa de Acerto (Win Rate)", f"{results['win_rate']:.2f}%")
+                col3.metric("Total Trades", results['total_trades'])
+                col3.metric("Win Rate", f"{results['win_rate']:.2f}%")
 
-                st.subheader("Evolução do Portfólio")
+                st.subheader("Portfolio Evolution")
                 portfolio_history = results['portfolio_history']['value']
                 buy_and_hold_history = results['buy_and_hold_history']
                 
                 chart_data = pd.concat([portfolio_history, buy_and_hold_history], axis=1)
-                chart_data.columns = ['Estratégia', 'Buy & Hold']
+                chart_data.columns = ['Strategy', 'Buy & Hold']
                 
                 st.line_chart(chart_data)
 
-                st.subheader("Histórico de Operações")
+                st.subheader("Trade History")
                 st.dataframe(trades_history)
 
             except Exception as e:
-                st.error(f"Ocorreu um erro durante o backtest: {e}")
+                st.error(f"An error occurred during the backtest: {e}")
 
 def login_page():
     logger.info("Displaying login page.")
     st.title("Login")
-    username = st.text_input("Usuário")
-    password = st.text_input("Senha", type="password")
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
     if st.button("Login"):
         logger.info(f"Login attempt for user '{username}'.")
         token = auth.login_user(username, password)
@@ -365,28 +365,28 @@ def login_page():
             st.session_state['username'] = username
             st.rerun()
         else:
-            st.error("Usuário ou senha inválidos")
+            st.error("Invalid username or password")
 
-    if st.button("Não tem uma conta? Cadastre-se"):
+    if st.button("Don't have an account? Sign up"):
         logger.info("Navigating to registration page.")
         st.session_state['page'] = 'registration'
         st.rerun()
 
 def registration_page():
     logger.info("Displaying registration page.")
-    st.title("Cadastro")
-    username = st.text_input("Usuário")
-    password = st.text_input("Senha", type="password")
-    if st.button("Cadastrar"):
+    st.title("Registration")
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+    if st.button("Register"):
         logger.info(f"Registration attempt for user '{username}'.")
         if auth.create_user(username, password):
-            st.success("Usuário criado com sucesso! Faça o login.")
+            st.success("User created successfully! Please log in.")
             st.session_state['page'] = 'login'
             st.rerun()
         else:
-            st.error("Usuário já existe")
+            st.error("User already exists")
 
-    if st.button("Já tem uma conta? Faça o login"):
+    if st.button("Already have an account? Log in"):
         logger.info("Navigating to login page.")
         st.session_state['page'] = 'login'
         st.rerun()
@@ -397,13 +397,13 @@ def main():
         logger.info(f"User '{username}' is logged in.")
         model_path, metrics_path = get_user_paths(username)
 
-        st.sidebar.title(f"Bem-vindo, {username}")
-        page = st.sidebar.radio("Selecione uma página", ["Dashboard", "Configurações", "Backtesting"])
+        st.sidebar.title(f"Welcome, {username}")
+        page = st.sidebar.radio("Select a page", ["Dashboard", "Settings", "Backtesting"])
 
         logger.info(f"User '{username}' navigated to page: {page}")
         if page == "Dashboard":
             dashboard_page(model_path, metrics_path)
-        elif page == "Configurações":
+        elif page == "Settings":
             settings_page(model_path, metrics_path)
         elif page == "Backtesting":
             backtesting_page(model_path, metrics_path)
