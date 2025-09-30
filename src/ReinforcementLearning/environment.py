@@ -3,9 +3,11 @@ import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
 import pandas as pd
+from src.LogHandler.log_config import get_logger
+
+logger = get_logger(__name__)
 
 INITIAL_ACCOUNT_BALANCE = 10000
-LOOKBACK_WINDOW_SIZE = 30 # Observa os últimos 30 dias de preço
 
 class TradingEnv(gym.Env):
     """
@@ -13,37 +15,41 @@ class TradingEnv(gym.Env):
     """
     metadata = {'render_modes': ['human']}
 
-    def __init__(self, df: pd.DataFrame):
+    def __init__(self, df: pd.DataFrame, feature_cols: list, transaction_cost_pct: float = 0.001, holding_penalty: float = -0.01, trade_completion_bonus: float = 0.1):
         super(TradingEnv, self).__init__()
 
-        self.df = df
-        self.current_step = 0
+        self.df = df.reset_index() # Mantém a data para o log de trades
+        self.feature_cols = feature_cols
         self.initial_balance = INITIAL_ACCOUNT_BALANCE
+        self.transaction_cost_pct = transaction_cost_pct
+        self.holding_penalty = holding_penalty
+        self.trade_completion_bonus = trade_completion_bonus
         
-        # Definir o espaço de ação: 0: Manter, 1: Comprar, 2: Vender
-        self.action_space = spaces.Discrete(3)
-
-        # Definir o espaço de observação (estado)
-        # Consiste em: [Preços dos últimos N dias] + [saldo, ações em posse]
+        # Espaço de observação com bounds realistas para melhor estabilidade
         self.observation_space = spaces.Box(
-            low=0, 
-            high=np.inf, 
-            shape=(LOOKBACK_WINDOW_SIZE + 2,), 
+            low=-10.0, 
+            high=10.0, 
+            shape=(len(self.feature_cols) + 2,),
             dtype=np.float32
         )
+        
+        self.action_space = spaces.Discrete(3)
 
     def _next_observation(self):
         """
         Obtém a próxima observação a ser fornecida ao agente.
         """
-        # Obtém a janela de dados de preços
-        frame = self.df.loc[
-            self.current_step - LOOKBACK_WINDOW_SIZE + 1 : self.current_step, 'Close'
-        ].values
+        if self.current_step >= len(self.df):
+            self.current_step = len(self.df) - 1
         
-        # Adiciona o saldo e as ações em posse
-        obs = np.append(frame, [self.balance, self.shares_held])
+        features = self.df.iloc[self.current_step][self.feature_cols].values
+        current_price = self.df.iloc[self.current_step]['Close']
         
+        # Normaliza balance e shares_held para melhor aprendizado
+        normalized_balance = self.balance / self.initial_balance
+        normalized_shares = (self.shares_held * current_price) / self.initial_balance
+        
+        obs = np.append(features, [normalized_balance, normalized_shares])
         return obs.astype(np.float32)
 
     def reset(self, seed=None, options=None):
@@ -55,14 +61,14 @@ class TradingEnv(gym.Env):
         self.balance = self.initial_balance
         self.shares_held = 0
         self.net_worth = self.initial_balance
+        self.position = None # None ou 'long'
+        self.trades = []
         
-        # Define o ponto de partida aleatório no dataframe
-        self.current_step = np.random.randint(
-            LOOKBACK_WINDOW_SIZE, len(self.df) - 1
-        )
+        # Define o ponto de partida sempre como o início do dataframe fornecido
+        self.current_step = 0
         
         observation = self._next_observation()
-        info = {} # Dicionário para informações de debug
+        info = {} 
         
         return observation, info
 
@@ -71,38 +77,89 @@ class TradingEnv(gym.Env):
         Executa um passo no ambiente.
         """
         current_price = self.df.loc[self.current_step, 'Close']
+        current_date = self.df.loc[self.current_step, 'date']
+        prev_net_worth = self.net_worth
         
-        # Executa a ação
-        if action == 1: # Comprar
-            # Compra o máximo possível com o saldo
+        is_inaction = False
+        reward_bonus = 0
+
+        # Ação de Comprar
+        if action == 1:
             if self.balance > 0:
-                shares_to_buy = self.balance / current_price
+                shares_to_buy = (self.balance / current_price) * (1 - self.transaction_cost_pct)
                 self.shares_held += shares_to_buy
                 self.balance = 0
+                self.position = 'long'
+                self.trades.append({
+                    'date_buy': current_date,
+                    'price_buy': current_price,
+                    'date_sell': None,
+                    'price_sell': None,
+                    'profit': None
+                })
+            else:
+                is_inaction = True # Tentou comprar sem saldo
 
-        elif action == 2: # Vender
-            # Vende todas as ações
+        # Ação de Vender
+        elif action == 2:
             if self.shares_held > 0:
                 self.balance += self.shares_held * current_price
+                self.balance *= (1 - self.transaction_cost_pct) # Aplica custo na venda
                 self.shares_held = 0
+                self.position = None
+                reward_bonus += self.trade_completion_bonus # Adiciona bônus por fechar a posição
+                if self.trades and self.trades[-1]['date_sell'] is None:
+                    last_trade = self.trades[-1]
+                    last_trade['date_sell'] = current_date
+                    last_trade['price_sell'] = current_price
+                    # Corrige cálculo do lucro baseado nas ações negociadas
+                    shares_traded = (self.initial_balance / last_trade['price_buy']) * (1 - self.transaction_cost_pct)
+                    last_trade['profit'] = (last_trade['price_sell'] - last_trade['price_buy']) * shares_traded
+            else:
+                is_inaction = True # Tentou vender sem ações
+        
+        # Ação de Manter
+        else: # action == 0
+            is_inaction = True
 
-        # Calcula o novo patrimônio líquido
-        prev_net_worth = self.net_worth
+        self.current_step += 1
+        terminated = self.current_step >= len(self.df) - 1
+
+        # Se o episódio terminar e ainda houver uma posição aberta, força a venda
+        if terminated and self.position == 'long':
+            if self.shares_held > 0:
+                self.balance += self.shares_held * current_price
+                self.balance *= (1 - self.transaction_cost_pct)
+                self.shares_held = 0
+                self.position = None
+                if self.trades and self.trades[-1]['date_sell'] is None:
+                    last_trade = self.trades[-1]
+                    last_trade['date_sell'] = current_date
+                    last_trade['price_sell'] = current_price
+                    # Corrige cálculo do lucro baseado nas ações negociadas
+                    shares_traded = (self.initial_balance / last_trade['price_buy']) * (1 - self.transaction_cost_pct)
+                    last_trade['profit'] = (last_trade['price_sell'] - last_trade['price_buy']) * shares_traded
+        
+        # Calcula a recompensa baseada no lucro/prejuízo
         self.net_worth = self.balance + self.shares_held * current_price
         
-        # Calcula a recompensa
-        reward = self.net_worth - prev_net_worth
+        # Recompensa baseada na mudança percentual do patrimônio
+        if prev_net_worth > 0:
+            reward = ((self.net_worth - prev_net_worth) / prev_net_worth) * 100
+        else:
+            reward = 0
         
-        # Avança no tempo
-        self.current_step += 1
+        # Adiciona bônus por trade completo
+        reward += reward_bonus
         
-        # Verifica se o episódio terminou
-        terminated = self.current_step >= len(self.df) - 1
-        
-        # Obtém a próxima observação
+        # Penalidade por inação para incentivar ações
+        if is_inaction:
+            reward += self.holding_penalty
+        else:
+            # Pequeno incentivo para tomar ações (comprar ou vender)
+            reward += 0.01
+
         observation = self._next_observation()
-        
-        # O Gymnasium espera 5 valores de retorno
         truncated = False 
         info = {}
 
@@ -113,6 +170,6 @@ class TradingEnv(gym.Env):
         Renderiza o estado atual do ambiente (opcional).
         """
         profit = self.net_worth - self.initial_balance
-        print(f'Passo: {self.current_step}')
-        print(f'Patrimônio Líquido: {self.net_worth:.2f}')
-        print(f'Lucro: {profit:.2f}')
+        logger.info(f'Passo: {self.current_step}')
+        logger.info(f'Patrimônio Líquido: {self.net_worth:.2f}')
+        logger.info(f'Lucro: {profit:.2f}')

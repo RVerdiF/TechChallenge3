@@ -109,3 +109,36 @@ def create_features(df, params={}):
     df_features = df_features.dropna()
     
     return df_features
+
+def get_feature_names(params):
+    """
+    Gera a lista de nomes de colunas de features com base nos parâmetros.
+    """
+    # Parâmetros com valores padrão
+    sma_window_1 = params.get('sma_window_1', 10)
+    sma_window_2 = params.get('sma_window_2', 30)
+    rsi_window = params.get('rsi_window', 14)
+    ema_window_1 = params.get('ema_window_1', 12)
+    ema_window_2 = params.get('ema_window_2', 26)
+    
+    feature_names = [
+        'month',
+        'day_of_week',
+        'day_of_month',
+        'close_7_days_ago',
+        'close_30_days_ago',
+        'volume_change_pct',
+        f'SMA_{sma_window_1}',
+        f'SMA_{sma_window_2}',
+        'RSI',
+        f'EMA_{ema_window_1}',
+        f'EMA_{ema_window_2}',
+        'MACD',
+        'MACD_signal',
+        'Bollinger_Upper',
+        'Bollinger_Lower',
+        'Stochastic_K',
+        'Stochastic_D'
+    ]
+    
+    return feature_names
