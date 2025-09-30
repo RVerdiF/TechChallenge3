@@ -1,45 +1,41 @@
 import pandas as pd
-import joblib
-import json
-from pathlib import Path
 from src.LogHandler.log_config import get_logger
 
 logger = get_logger(__name__)
 
-def make_prediction(input_data, model_path):
+def make_prediction(input_data: pd.DataFrame, model, metrics: dict):
     """
-    Faz previsão usando o modelo salvo.
+    Faz previsão usando o modelo carregado.
     
     Args:
-        input_data (pd.DataFrame): Dados com features calculadas
+        input_data (pd.DataFrame): Dados com as features calculadas.
+        model: Objeto do modelo treinado e carregado.
+        metrics (dict): Dicionário de métricas que contém a lista de features usadas no treinamento.
     
     Returns:
         tuple: (Previsão, Confiança)
     """
-    model_path = Path(model_path)
-    if not model_path.exists():
-        logger.error(f"Model not found at {model_path}")
-        raise FileNotFoundError("Modelo não encontrado. Execute o treinamento primeiro.")
-    
-    # Carrega modelo
-    logger.info(f"Loading model from {model_path}")
-    model = joblib.load(model_path)
-    
-    # Carrega lista de features do treinamento
-    metrics_path = model_path.parent / 'metrics.json'
-    with open(metrics_path, 'r') as f:
-        metrics = json.load(f)
-    feature_cols = metrics['features']
-    
-    # Verifica se todas as features estão presentes
-    missing_features = [col for col in feature_cols if col not in input_data.columns]
+    if model is None or metrics is None:
+        logger.error("Model or metrics not provided to make_prediction function.")
+        raise ValueError("Modelo ou métricas não foram fornecidos. Treine um modelo primeiro.")
+
+    feature_cols = metrics.get('features')
+    if not feature_cols:
+        logger.error("'features' key not found in metrics dictionary.")
+        raise ValueError("Lista de features não encontrada nas métricas. Treine o modelo novamente.")
+
+    # Garante que a última linha dos dados de entrada seja usada
+    latest_data = input_data.iloc[-1:]
+
+    # Verifica se todas as features necessárias estão presentes nos dados de entrada
+    missing_features = [col for col in feature_cols if col not in latest_data.columns]
     if missing_features:
-        raise ValueError(f"Features faltando: {missing_features}")
+        raise ValueError(f"Features faltando nos dados de entrada: {missing_features}")
     
-    # Seleciona apenas as features necessárias
-    X = input_data[feature_cols].iloc[-1:]  # Última linha
+    # Seleciona apenas as features usadas no treinamento, na ordem correta
+    X = latest_data[feature_cols]
     
-    # Faz previsão de probabilidade
+    # Faz a previsão de probabilidade
     logger.info(f"Making prediction with {len(feature_cols)} features.")
     prediction_proba = model.predict_proba(X)[0]
     prediction = prediction_proba.argmax()

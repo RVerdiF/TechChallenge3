@@ -1,15 +1,13 @@
-import json
-
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.figure_factory as ff
-import joblib
+import json
 import threading
-
 from src.health_check import run_health_check_server
 from src.LogHandler.log_config import get_logger
-from datetime import datetime, timedelta, date
+from datetime import datetime, date
+
 import src.ApiHandler.data_api as data_api
 import src.DataHandler.data_handler as data_handler
 import src.DataHandler.feature_engineering as feature_engineering
@@ -17,76 +15,41 @@ import src.ModelHandler.predict as predict
 import src.ModelHandler.train_model as train_model
 from src.AuthHandler import auth
 from src.BacktestHandler import backtesting
-from src.config import CONFIG_FILE, USER_DATA_DIR
+import src.DataHandler.model_db_handler as model_db_handler
+from src.Orchestration.update_scheduler import daily_update_task
 
-# --- Health Check Server ---
-# Use session state to ensure the server is started only once
+# --- Background Tasks ---
 if 'health_check_started' not in st.session_state:
-    # Run the health check server in a daemon thread
     health_thread = threading.Thread(target=run_health_check_server, daemon=True)
     health_thread.start()
     st.session_state['health_check_started'] = True
+
+if 'daily_update_task_started' not in st.session_state:
+    update_thread = threading.Thread(target=daily_update_task, daemon=True)
+    update_thread.start()
+    st.session_state['daily_update_task_started'] = True
 # -------------------------
 
 st.set_page_config(page_title="BTC Dashboard", layout="wide")
 
 logger = get_logger(__name__)
 
-CONFIG_PATH = CONFIG_FILE
-
+# --- Database Initialization ---
 auth.init_db()
+model_db_handler.init_db()
+data_handler.init_database()
+# -----------------------------
 
-def get_user_paths(username):
-    user_dir = USER_DATA_DIR / username
-    model_path = user_dir / "lgbm_model.pkl"
-    metrics_path = user_dir / "metrics.json"
-    return model_path, metrics_path
-
-def load_config():
-    """Loads the configuration from the JSON file."""
-    if CONFIG_PATH.exists():
-        with open(CONFIG_PATH, "r") as f:
-            return json.load(f)
-    else:
-        # Default values
-        return {
-            "model_params": {
-                'n_estimators': 100,
-                'learning_rate': 0.1,
-                'max_depth': -1,
-                'num_leaves': 31,
-                'reg_alpha': 0.0,
-                'reg_lambda': 0.0
-            },
-            "feature_params": {
-                'sma_window_1': 10,
-                'sma_window_2': 30,
-                'rsi_window': 14,
-                'ema_window_1': 12,
-                'ema_window_2': 26,
-                'macd_fast': 12,
-                'macd_slow': 26,
-                'macd_signal': 9,
-                'bollinger_window': 20,
-                'stochastic_window': 14
-            }
-        }
-
-def save_config(config):
-    """Saves the configuration to a JSON file."""
-    with open(CONFIG_PATH, "w") as f:
-        json.dump(config, f, indent=4)
-
-def dashboard_page(model_path, metrics_path):
-    logger.info("Displaying dashboard page.")
+def dashboard_page(username):
+    logger.info(f"Displaying dashboard page for user '{username}'.")
     st.title("BTC Price Prediction Dashboard")
 
     # Load data to get the minimum date
     df_temp = data_handler.load_data()
     min_date = df_temp.index.min().date() if not df_temp.empty else date(2009, 1, 3)
-    del df_temp
-    
-    # Date controls for update
+
+    # Date controls for manual update
+    st.subheader("Manual Data Update")
     col1, col2, col3 = st.columns([1, 1, 1])
     with col1:
         start_date = st.date_input(
@@ -103,28 +66,29 @@ def dashboard_page(model_path, metrics_path):
     with col3:
         st.write("")
         st.write("")
-        if st.button("Update Data"):
-            logger.info("User clicked 'Update Data'.")
-            with st.spinner("Updating data..."):
-                data_handler.drop_table()
-                df = data_api.get_btc_data(
+        if st.button("Update Data Range"):
+            logger.info(f"User '{username}' clicked 'Update Data Range'.")
+            with st.spinner("Updating data for the selected range..."):
+                df_new = data_api.get_btc_data(
                     start_date=start_date.strftime("%Y-%m-%d"),
                     end_date=end_date.strftime("%Y-%m-%d")
                 )
-                if not df.empty:
-                    data_handler.save_data(df)
-                    st.success("Data updated!")
+                if not df_new.empty:
+                    data_handler.update_data(df_new, start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
+                    st.success("Data updated for the selected range!")
+                    st.rerun() # Rerun to reflect changes
                 else:
                     st.error("Error updating data")
 
     df = data_handler.load_data()
     if df.empty:
-        st.warning("No data found. Click 'Update Data' to get started.")
+        st.warning("No data found. The application is fetching the initial data in the background. Please wait a moment and refresh.")
         return
 
-    config = load_config()
+    config = model_db_handler.load_config(username)
     feature_params = config.get("feature_params", {})
 
+    st.subheader("Market Overview")
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric("Current Price", f"${df['Close'].iloc[-1]:,.2f}")
@@ -139,21 +103,26 @@ def dashboard_page(model_path, metrics_path):
 
     st.subheader("Tomorrow's Forecast")
     if st.button("Generate Tomorrow's Forecast", type="primary"):
-        logger.info("User clicked 'Generate Tomorrow's Forecast'.")
+        logger.info(f"User '{username}' clicked 'Generate Tomorrow's Forecast'.")
         try:
             with st.spinner("Generating forecast..."):
-                df_features = feature_engineering.create_features(df, params=feature_params)
-                if df_features.empty:
-                    st.error("Insufficient data to generate forecast")
-                    return
-                prediction, confidence = predict.make_prediction(df_features, model_path)
-                if prediction == 1:
-                    st.success(f"### Trend for tomorrow: **UP** 📈 (Confidence: {confidence:.2%})")
+                model, metrics = model_db_handler.load_model(username)
+                if model is None:
+                    st.error("Model not found. Please train the model first on the Settings page.")
                 else:
-                    st.error(f"### Trend for tomorrow: **DOWN** 📉 (Confidence: {confidence:.2%})")
-        except FileNotFoundError:
-            st.error("Model not found. Please train the model first.")
+                    loaded_feature_params = metrics.get("feature_params", feature_params)
+                    df_features = feature_engineering.create_features(df, params=loaded_feature_params)
+                    
+                    if df_features.empty:
+                        st.error("Insufficient data to generate forecast")
+                    else:
+                        prediction, confidence = predict.make_prediction(df_features, model, metrics)
+                        if prediction == 1:
+                            st.success(f"### Trend for tomorrow: **UP** 📈 (Confidence: {confidence:.2%})")
+                        else:
+                            st.error(f"### Trend for tomorrow: **DOWN** 📉 (Confidence: {confidence:.2%})")
         except Exception as e:
+            logger.error(f"Error generating forecast for user '{username}': {e}", exc_info=True)
             st.error(f"Error generating forecast: {e}")
 
     st.subheader("Bitcoin Price History")
@@ -161,14 +130,14 @@ def dashboard_page(model_path, metrics_path):
     period = st.radio("Select period", ["1 month", "3 months", "1 year", "All"], index=3, horizontal=True)
 
     if period != "All":
-        end_date = df.index.max()
+        end_date_dt = df.index.max()
         if period == "1 month":
-            start_date = end_date - pd.DateOffset(months=1)
+            start_date_dt = end_date_dt - pd.DateOffset(months=1)
         elif period == "3 months":
-            start_date = end_date - pd.DateOffset(months=3)
+            start_date_dt = end_date_dt - pd.DateOffset(months=3)
         else: # 1 year
-            start_date = end_date - pd.DateOffset(years=1)
-        df_filtered = df[df.index >= start_date]
+            start_date_dt = end_date_dt - pd.DateOffset(years=1)
+        df_filtered = df[df.index >= start_date_dt]
     else:
         df_filtered = df
 
@@ -180,20 +149,18 @@ def dashboard_page(model_path, metrics_path):
         st.write(f"**Data period:** {df.index.min().strftime('%Y-%m-%d')} to {df.index.max().strftime('%Y-%m-%d')}")
         st.write(f"**Total records:** {len(df)}")
         st.write("**Columns:** Open, High, Low, Close, Volume")
-        if metrics_path.exists():
-            with open(metrics_path, "r") as f:
-                metrics = json.load(f)
-                st.write("**Model Indicators:**", ", ".join(metrics.get("features", [])))
+        _, metrics = model_db_handler.load_model(username)
+        if metrics:
+            st.write("**Model Indicators:**", ", ".join(metrics.get("features", [])))
 
-def settings_page(model_path, metrics_path):
-    logger.info("Displaying settings page.")
+def settings_page(username):
+    logger.info(f"Displaying settings page for user '{username}'.")
     st.title("Settings")
     
-    # Load data to get the minimum date
     df_temp = data_handler.load_data()
     min_date = df_temp.index.min().date() if not df_temp.empty else date(2009, 1, 3)
     
-    config = load_config()
+    config = model_db_handler.load_config(username)
     model_params_saved = config.get("model_params", {})
     feature_params_saved = config.get("feature_params", {})
 
@@ -235,7 +202,7 @@ def settings_page(model_path, metrics_path):
         train_end_date = st.date_input("Training End Date", value=datetime.now())
 
     if st.button("Train Model"):
-        logger.info("User clicked 'Train Model'.")
+        logger.info(f"User '{username}' clicked 'Train Model'.")
         with st.spinner("Training model..."):
             try:
                 model_params = {
@@ -258,52 +225,50 @@ def settings_page(model_path, metrics_path):
                     'bollinger_window': bollinger_window,
                     'stochastic_window': stochastic_window
                 }
-                save_config({"model_params": model_params, "feature_params": feature_params})
+                config_to_save = {"model_params": model_params, "feature_params": feature_params}
+                model_db_handler.save_config(username, config_to_save)
                 
                 train_model.train_and_save_model(
+                    username=username,
                     feature_params=feature_params, 
                     model_params=model_params, 
-                    model_path=model_path, 
-                    metrics_path=metrics_path,
                     start_date=train_start_date,
                     end_date=train_end_date
                 )
                 st.success("Model trained successfully!")
             except Exception as e:
+                logger.error(f"Error during training for user '{username}': {e}", exc_info=True)
                 st.error(f"Error during training: {e}")
 
-    if metrics_path.exists():
-        with open(metrics_path, "r") as f:
-            metrics = json.load(f)
-        if metrics:
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Accuracy", f"{metrics.get('accuracy', 0):.2%}")
-            with col2:
-                st.metric("F1-Score", f"{metrics.get('f1_score', 0):.2%}")
-            with st.expander("Confusion Matrix"):
-                conf_matrix = metrics.get("confusion_matrix")
-                if conf_matrix:
-                    z = conf_matrix
-                    x = ['Down', 'Up']
-                    y = ['Down', 'Up']
-                    fig_cm = ff.create_annotated_heatmap(z, x=x, y=y, colorscale='Blues', showscale=True)
-                    fig_cm.update_layout(title='Confusion Matrix')
-                    st.plotly_chart(fig_cm, use_container_width=True, key="confusion_matrix_chart")
-        else:
-            st.warning("Metrics not found. Train the model to generate them.")
+    _, metrics = model_db_handler.load_model(username)
+    if metrics:
+        st.subheader("Current Model Metrics")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Accuracy", f"{metrics.get('accuracy', 0):.2%}")
+        with col2:
+            st.metric("F1-Score", f"{metrics.get('f1_score', 0):.2%}")
+        with st.expander("Confusion Matrix"):
+            conf_matrix = metrics.get("confusion_matrix")
+            if conf_matrix:
+                z = conf_matrix
+                x = ['Down', 'Up']
+                y = ['Down', 'Up']
+                fig_cm = ff.create_annotated_heatmap(z, x=x, y=y, colorscale='Blues', showscale=True)
+                fig_cm.update_layout(title='Confusion Matrix')
+                st.plotly_chart(fig_cm, use_container_width=True, key="confusion_matrix_chart")
     else:
         st.warning("Metrics not found. Train the model to generate them.")
 
-def backtesting_page(model_path, metrics_path):
-    logger.info("Displaying backtesting page.")
+def backtesting_page(username):
+    logger.info(f"Displaying backtesting page for user '{username}'.")
     st.title("Strategy Backtesting")
 
-    if not model_path.exists() or not metrics_path.exists():
+    model, metrics = model_db_handler.load_model(username)
+    if not model or not metrics:
         st.warning("Model or metrics not found. Train a model first on the Settings page.")
         return
 
-    # Load data to get the minimum date
     df_temp = data_handler.load_data()
     min_date = df_temp.index.min().date() if not df_temp.empty else date(2009, 1, 3)
 
@@ -315,13 +280,9 @@ def backtesting_page(model_path, metrics_path):
         backtest_end_date = st.date_input("Backtest End Date", value=datetime.now())
 
     if st.button("Start Backtest", type="primary"):
-        logger.info("User clicked 'Start Backtest'.")
+        logger.info(f"User '{username}' clicked 'Start Backtest'.")
         with st.spinner("Running backtest... This may take a few minutes."):
             try:
-                model = joblib.load(model_path)
-                with open(metrics_path, "r") as f:
-                    metrics = json.load(f)
-                
                 feature_cols = metrics.get("features")
                 feature_params = metrics.get("feature_params")
 
@@ -362,6 +323,7 @@ def backtesting_page(model_path, metrics_path):
                 st.dataframe(trades_history)
 
             except Exception as e:
+                logger.error(f"An error occurred during backtest for user '{username}': {e}", exc_info=True)
                 st.error(f"An error occurred during the backtest: {e}")
 
 def login_page():
@@ -407,18 +369,17 @@ def main():
     if st.session_state.get('authentication_status', False):
         username = st.session_state['username']
         logger.info(f"User '{username}' is logged in.")
-        model_path, metrics_path = get_user_paths(username)
-
+        
         st.sidebar.title(f"Welcome, {username}")
         page = st.sidebar.radio("Select a page", ["Dashboard", "Settings", "Backtesting"])
 
         logger.info(f"User '{username}' navigated to page: {page}")
         if page == "Dashboard":
-            dashboard_page(model_path, metrics_path)
+            dashboard_page(username)
         elif page == "Settings":
-            settings_page(model_path, metrics_path)
+            settings_page(username)
         elif page == "Backtesting":
-            backtesting_page(model_path, metrics_path)
+            backtesting_page(username)
         
         if st.sidebar.button("Logout"):
             logger.info(f"User '{username}' logged out.")

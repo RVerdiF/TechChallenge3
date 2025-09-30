@@ -1,30 +1,50 @@
 import pandas as pd
 import sqlite3
 from src.LogHandler.log_config import get_logger
-
-logger = get_logger(__name__)
-
 from src.config import BTC_PRICES_DB
 
+logger = get_logger(__name__)
 DB_PATH = BTC_PRICES_DB
 
 def init_database():
-    """Inicializa o banco de dados SQLite com a tabela prices."""
+    """Inicializa o banco de dados SQLite com as tabelas prices e metadata."""
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS prices (
-            date TEXT PRIMARY KEY,
-            open REAL,
-            high REAL,
-            low REAL,
-            close REAL,
-            volume REAL
-        )
-    ''')
-    conn.commit()
-    conn.close()
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS prices (
+                date TEXT PRIMARY KEY,
+                open REAL,
+                high REAL,
+                low REAL,
+                close REAL,
+                volume REAL
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS metadata (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            )
+        ''')
+        conn.commit()
+
+def get_metadata(key: str) -> str | None:
+    """Busca um valor da tabela de metadados."""
+    init_database()
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM metadata WHERE key = ?", (key,))
+        row = cursor.fetchone()
+        return row[0] if row else None
+
+def set_metadata(key: str, value: str):
+    """Insere ou atualiza um valor na tabela de metadados."""
+    init_database()
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)", (key, value))
+        conn.commit()
 
 def save_data(df):
     """
@@ -104,12 +124,16 @@ def load_data():
         pd.DataFrame: DataFrame com dados históricos
     """
     if not DB_PATH.exists():
+        init_database() # Garante que o DB e as tabelas existam
         return pd.DataFrame()
     
     conn = sqlite3.connect(DB_PATH)
     
     try:
         df = pd.read_sql_query("SELECT * FROM prices ORDER BY date", conn)
+        if df.empty:
+            return pd.DataFrame()
+            
         df['date'] = pd.to_datetime(df['date'])
         df.set_index('date', inplace=True)
         df.columns = [col.capitalize() for col in df.columns]

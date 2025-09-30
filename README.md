@@ -17,7 +17,8 @@ Projeto de previsão de preço do Bitcoin usando Machine Learning com arquitetur
 │   ├── BacktestHandler/
 │   │   └── backtesting.py      # Lógica para backtesting de estratégias
 │   ├── DataHandler/
-│   │   ├── data_handler.py     # Gerenciamento de dados SQLite
+│   │   ├── data_handler.py     # Gerenciamento do DB de preços (btc_prices.db)
+│   │   ├── model_db_handler.py # Gerenciamento do DB de modelos (models.db)
 │   │   └── feature_engineering.py # Criação de features
 │   ├── LogHandler/
 │   │   └── log_config.py       # Configuração de logs
@@ -25,13 +26,10 @@ Projeto de previsão de preço do Bitcoin usando Machine Learning com arquitetur
 │   │   ├── train_model.py      # Treinamento do modelo
 │   │   └── predict.py          # Previsões
 │   ├── Orchestration/
-│   │   └── run_project.py      # Script de configuração inicial
+│   │   ├── run_project.py      # Script de configuração inicial (obsoleto)
+│   │   └── update_scheduler.py # Lógica para atualização diária de dados
 │   ├── __init__.py             # Inicializador do pacote src
 │   └── config.py               # Configurações do projeto (paths)
-├── user_data/
-│   └── Admin/
-│       ├── lgbm_model.pkl      # Modelo treinado do usuário
-│       └── metrics.json        # Métricas e parâmetros do modelo
 ├── .gitignore                  # Arquivos ignorados pelo Git
 ├── main.py                     # Interface Streamlit
 ├── requirements.txt            # Dependências do projeto
@@ -39,7 +37,7 @@ Projeto de previsão de preço do Bitcoin usando Machine Learning com arquitetur
 ```
 
 **Observações:**
-- Os arquivos `btc_prices.db` e `users.db` são criados dinamicamente no diretório `src/DataHandler/`.
+- Os bancos de dados `btc_prices.db`, `users.db` e `models.db` são criados dinamicamente no diretório `src/DataHandler/`.
 - Os diretórios `__pycache__` são criados automaticamente pelo Python.
 
 ## Instalação
@@ -58,59 +56,40 @@ pip install -r requirements.txt
 
 ## Uso
 
-### Configuração Inicial
-Execute uma única vez para configurar o projeto para o usuário padrão "Admin":
-```bash
-python -m src.Orchestration.run_project
-```
-Este comando irá:
-- Coletar 3 anos de dados históricos do Bitcoin.
-- Salvar os dados no banco SQLite (`btc_prices.db`).
-- Treinar o modelo LightGBM com as features e parâmetros padrão.
-- Salvar o modelo (`lgbm_model.pkl`) e as métricas (`metrics.json`) no diretório `user_data/Admin/`.
-
-Para configurar para um novo usuário, use o argumento `--user`:
-```bash
-python -m src.Orchestration.run_project --user <username>
-```
-
-### Dashboard Interativo
+**Para iniciar o dashboard interativo:**
 ```bash
 streamlit run main.py
 ```
-A aplicação irá pedir para criar um usuário e senha. Após o login, o dashboard será exibido.
+A aplicação irá iniciar e apresentar uma tela de login. Você pode criar um novo usuário e, após o login, o dashboard será exibido. A primeira carga de dados é feita automaticamente em segundo plano.
 
 ## Funcionalidades
 
 ### Coleta de Dados
 - **Fonte**: Yahoo Finance (yfinance)
-- **Período**: Padrão de 3 anos, mas configurável no dashboard.
-- **Dados**: Open, High, Low, Close, Volume
-- **Armazenamento**: SQLite local (`btc_prices.db`)
+- **Atualização Automática**: Os dados são atualizados diariamente em segundo plano para incluir o dia mais recente.
+- **Armazenamento**: SQLite local (`btc_prices.db`).
 
 ### Engenharia de Features
-- **Indicadores Técnicos**: SMA, RSI, EMA, MACD, Bandas de Bollinger, Oscilador Estocástico. Os parâmetros são configuráveis no dashboard.
-- **Features de Data**: Mês, dia da semana, dia do mês.
-- **Features de Lag**: Preço de fechamento de 7 e 30 dias atrás.
-- **Features de Volume**: Variação percentual do volume.
+- **Indicadores Técnicos**: SMA, RSI, EMA, MACD, Bandas de Bollinger, Oscilador Estocástico.
 - **Target**: Classificação binária (Alta/Queda do próximo dia).
 
 ### Modelo de Machine Learning
 - **Algoritmo**: LightGBM Classifier
 - **Validação**: Time Series Split (3 folds)
 - **Métricas**: Accuracy e F1-Score
-- **Previsão**: Tendência para o próximo dia (0=Queda, 1=Alta) com score de confiança.
-- **Customização**: Os hiperparâmetros do modelo podem ser ajustados no dashboard.
+- **Armazenamento**: O modelo treinado, métricas e parâmetros são salvos em um banco de dados SQLite, associados à conta do usuário.
 
 ### Dashboard Web
 - **Autenticação**: Sistema de login e registro de usuários.
+- **Atualização Automática**: Os dados de preço são atualizados diariamente em background.
 - **Gráfico interativo**: Histórico de preços com Plotly, com seleção de período.
-- **Estatísticas**: Preço atual, variação diária, máximos/mínimos (30d).
-- **Previsões**: Botão para gerar previsão do próximo dia com a confiança do modelo.
-- **Treinamento Customizado**: Interface para ajustar parâmetros de features e do modelo, e treinar um novo modelo para o usuário logado.
-- **Backtesting**: Página para simular uma estratégia de trading baseada no modelo treinado e visualizar os resultados.
+- **Previsões**: Botão para gerar previsão do próximo dia com a confiança do modelo do usuário.
+- **Treinamento Customizado**: Interface para ajustar parâmetros de features e do modelo, e treinar um novo modelo para o usuário logado. Os parâmetros são salvos no banco de dados para futuras sessões.
+- **Backtesting**: Página para simular uma estratégia de trading baseada no modelo treinado.
 
 ## Fluxos da Aplicação
+
+(Os diagramas de fluxo fornecem uma visão geral da lógica da aplicação. Note que o armazenamento, antes baseado em arquivos, agora é centralizado em bancos de dados SQLite.)
 
 ### Fluxo Principal
 ![Fluxo Principal da Aplicação](imgs/Main%20Application%20Flow.jpg)
@@ -130,36 +109,22 @@ A aplicação irá pedir para criar um usuário e senha. Após o login, o dashbo
 ## Arquitetura Modular
 
 ### `main.py`
-- Interface principal construída com Streamlit. Gerencia a navegação entre as páginas de login, dashboard, configurações e backtesting.
+- Interface principal com Streamlit. Gerencia a navegação, estado da sessão e inicialização de tarefas em segundo plano (atualização de dados).
 
 ### `src/`
-- **`config.py`**: Define os caminhos e constantes globais do projeto.
-
-- **`ApiHandler/`**:
-  - `data_api.py`: Interface com a API do Yahoo Finance para coleta de dados.
-
-- **`AuthHandler/`**:
-  - `auth.py`: Gerencia a autenticação de usuários, incluindo criação, login e armazenamento de senhas com hash em um banco de dados SQLite (`users.db`).
-
-- **`BacktestHandler/`**:
-  - `backtesting.py`: Contém a lógica para executar a simulação de backtesting, calculando o retorno da estratégia, Sharpe Ratio, Drawdown, etc.
-
+- **`ApiHandler/`**: Coleta de dados externos.
+- **`AuthHandler/`**: Gerencia a autenticação de usuários em seu próprio banco de dados (`users.db`).
+- **`BacktestHandler/`**: Contém a lógica para executar a simulação de backtesting.
 - **`DataHandler/`**:
-  - `data_handler.py`: Operações CRUD no banco de dados SQLite (`btc_prices.db`) para os preços do Bitcoin.
-  - `feature_engineering.py`: Funções para calcular indicadores técnicos e outras features a partir dos dados brutos.
-
-- **`LogHandler/`**:
-  - `log_config.py`: Configuração centralizada do logger para o projeto.
-
+  - `data_handler.py`: Gerencia o banco de dados de preços (`btc_prices.db`) e metadados (ex: data da última atualização).
+  - `model_db_handler.py`: Gerencia o banco de dados de modelos e configurações dos usuários (`models.db`).
+  - `feature_engineering.py`: Funções para calcular indicadores técnicos.
+- **`LogHandler/`**: Configuração centralizada do logger.
 - **`ModelHandler/`**:
-  - `train_model.py`: Pipeline de treinamento do modelo. Inclui validação temporal (Time Series Split), salvamento do modelo treinado (`.pkl`) e das métricas (`.json`).
-  - `predict.py`: Carrega um modelo treinado e a lista de features correspondente para fazer previsões em novos dados.
-
+  - `train_model.py`: Pipeline de treinamento que salva o modelo e métricas no banco de dados via `model_db_handler`.
+  - `predict.py`: Carrega um modelo do banco de dados para fazer previsões.
 - **`Orchestration/`**:
-  - `run_project.py`: Script para orquestrar a configuração inicial do projeto (coleta de dados e primeiro treinamento).
-
-### `user_data/`
-- Diretório que armazena os artefatos específicos de cada usuário. Cada usuário tem seu próprio subdiretório, contendo o modelo treinado e as métricas correspondentes.
+  - `update_scheduler.py`: Contém a lógica da tarefa em segundo plano que verifica e dispara a atualização diária dos dados.
 
 ## Dependências
 
@@ -170,10 +135,8 @@ A aplicação irá pedir para criar um usuário e senha. Após o login, o dashbo
 - **joblib**: Serialização do modelo
 - **streamlit**: Interface web
 - **plotly**: Visualizações interativas
-- **tqdm**: Barras de progresso
 
 ## Notas Técnicas
 
-- **Validação Temporal**: O modelo usa `TimeSeriesSplit` para evitar *data leakage*, respeitando a natureza temporal dos dados.
-- **Consistência de Features**: A lista de features é salva dinamicamente durante o treinamento e carregada durante a predição para garantir consistência e evitar erros.
-- **Multi-usuário**: A arquitetura suporta múltiplos usuários, onde cada um pode treinar e usar seu próprio modelo.
+- **Multi-usuário**: A arquitetura suporta múltiplos usuários, onde cada um pode treinar, salvar e usar seu próprio modelo e configurações, persistidos em um banco de dados.
+- **Tarefas em Segundo Plano**: A atualização diária de dados é executada em uma thread separada, garantindo que a interface do usuário não seja bloqueada.
