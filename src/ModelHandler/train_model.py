@@ -64,7 +64,7 @@ def train_and_save_model(feature_params={}, model_params={}, model_path=None, me
     y = y[:-1]
     
     # Validação temporal
-    tscv = TimeSeriesSplit(n_splits=3)
+    tscv = TimeSeriesSplit(n_splits=5)
     accuracies = []
     f1_scores = []
     conf_matrix = np.zeros((2, 2))

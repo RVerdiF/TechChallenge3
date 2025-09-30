@@ -1,13 +1,15 @@
+import json
 
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.figure_factory as ff
-import json
 import joblib
+import threading
+
+from src.health_check import run_health_check_server
 from src.LogHandler.log_config import get_logger
 from datetime import datetime, timedelta, date
-
 import src.ApiHandler.data_api as data_api
 import src.DataHandler.data_handler as data_handler
 import src.DataHandler.feature_engineering as feature_engineering
@@ -16,6 +18,15 @@ import src.ModelHandler.train_model as train_model
 from src.AuthHandler import auth
 from src.BacktestHandler import backtesting
 from src.config import CONFIG_FILE, USER_DATA_DIR
+
+# --- Health Check Server ---
+# Use session state to ensure the server is started only once
+if 'health_check_started' not in st.session_state:
+    # Run the health check server in a daemon thread
+    health_thread = threading.Thread(target=run_health_check_server, daemon=True)
+    health_thread.start()
+    st.session_state['health_check_started'] = True
+# -------------------------
 
 st.set_page_config(page_title="BTC Dashboard", layout="wide")
 
@@ -73,7 +84,8 @@ def dashboard_page(model_path, metrics_path):
     # Load data to get the minimum date
     df_temp = data_handler.load_data()
     min_date = df_temp.index.min().date() if not df_temp.empty else date(2009, 1, 3)
-
+    del df_temp
+    
     # Date controls for update
     col1, col2, col3 = st.columns([1, 1, 1])
     with col1:

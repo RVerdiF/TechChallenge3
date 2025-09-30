@@ -6,3 +6,4 @@ joblib
 streamlit
 plotly
 tqdm
+Flask
