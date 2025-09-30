@@ -383,7 +383,7 @@ def main():
         logger.info(f"User '{username}' is logged in.")
         
         st.sidebar.title(f"Bem-vindo, {username}")
-        page = st.sidebar.radio("Selecione uma página", ["Dashboard", "Configurações", "Backtesting"])
+        page = st.sidebar.radio("Selecione uma página", ["Dashboard", "Settings", "Backtesting"])
 
         logger.info(f"User '{username}' navigated to page: {page}")
         if page == "Dashboard":
