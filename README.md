@@ -31,7 +31,7 @@ Projeto de previsão de preço do Bitcoin usando Machine Learning com arquitetur
 │   ├── __init__.py             # Inicializador do pacote src
 │   └── config.py               # Configurações do projeto (paths)
 ├── .gitignore                  # Arquivos ignorados pelo Git
-app.py                     # Interface Streamlit
+├── app.py                      # Interface Streamlit
 ├── requirements.txt            # Dependências do projeto
 └── README.md                   # Documentação
 ```
