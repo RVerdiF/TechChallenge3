@@ -114,7 +114,7 @@ def dashboard_page(username):
         st.metric("Mínima (30d)", f"${df['Low'].tail(30).min():,.2f}")
 
     st.subheader("Previsão para o Próximo Dia")
-    if st.button("Gerar Previsão", type="primary"):
+    if st.button("Gerar Previsão (Modelo LightGBM)", type="primary"):
         logger.info(f"User '{username}' clicked 'Generate Tomorrow's Forecast'.")
         try:
             with st.spinner("Gerando previsão..."):
@@ -382,7 +382,9 @@ def backtesting_page(username):
                 chart_data = pd.concat([portfolio_history, buy_and_hold_history], axis=1)
                 chart_data.columns = ['Estratégia', 'Buy & Hold']
                 
-                st.line_chart(chart_data)
+                fig = px.line(chart_data.reset_index(), x='date', y=['Estratégia', 'Buy & Hold'], title="Evolução do Portfólio vs Buy & Hold")
+                fig.update_layout(height=500)
+                st.plotly_chart(fig, use_container_width=True)
 
                 st.subheader("Histórico de Trades")
                 st.dataframe(trades_history)
@@ -456,7 +458,10 @@ def rl_backtesting_page(username):
                 buy_and_hold_history = results['buy_and_hold_history']
                 chart_data = pd.concat([portfolio_history, buy_and_hold_history], axis=1)
                 chart_data.columns = ['Estratégia RL', 'Buy & Hold']
-                st.line_chart(chart_data)
+                
+                fig = px.line(chart_data.reset_index(), x='date', y=['Estratégia RL', 'Buy & Hold'], title="Evolução do Portfólio (RL) vs Buy & Hold")
+                fig.update_layout(height=500)
+                st.plotly_chart(fig, use_container_width=True)
 
                 st.subheader("Histórico de Trades")
                 st.dataframe(results['trades_history'])

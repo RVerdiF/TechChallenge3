@@ -31,7 +31,7 @@ Projeto de previsão de preço do Bitcoin usando Machine Learning com arquitetur
 │   ├── __init__.py             # Inicializador do pacote src
 │   └── config.py               # Configurações do projeto (paths)
 ├── .gitignore                  # Arquivos ignorados pelo Git
-├── main.py                     # Interface Streamlit
+app.py                     # Interface Streamlit
 ├── requirements.txt            # Dependências do projeto
 └── README.md                   # Documentação
 ```
@@ -58,7 +58,7 @@ pip install -r requirements.txt
 
 **Para iniciar o dashboard interativo:**
 ```bash
-streamlit run main.py
+streamlit run app.py
 ```
 A aplicação irá iniciar e apresentar uma tela de login. Você pode criar um novo usuário e, após o login, o dashboard será exibido. A primeira carga de dados é feita automaticamente em segundo plano.
 
@@ -108,7 +108,7 @@ A aplicação irá iniciar e apresentar uma tela de login. Você pode criar um n
 
 ## Arquitetura Modular
 
-### `main.py`
+### `app.py`
 - Interface principal com Streamlit. Gerencia a navegação, estado da sessão e inicialização de tarefas em segundo plano (atualização de dados).
 
 ### `src/`
