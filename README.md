@@ -1,5 +1,7 @@
 # BTC Prediction Project
 
+**Disclaimer:** Este dashboard não configura recomendação de investimento e foi criado com propósito estritamente acadêmico.
+
 Projeto de previsão de preço do Bitcoin usando Machine Learning com arquitetura modular e dashboard interativo.
 
 ## Estrutura do Projeto

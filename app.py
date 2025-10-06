@@ -107,7 +107,7 @@ def dashboard_page(username):
     with col2:
         change = df['Close'].iloc[-1] - df['Close'].iloc[-2]
         changepct = (change / df['Close'].iloc[-2]) * 100
-        st.metric("Variação Diária", f"${change:,.2f}", f"%{changepct:+.2f}")
+        st.metric("Variação Diária", f"${change:,.2f}", f"{changepct:+.2f}%")
     with col3:
         st.metric("Máxima (30d)", f"${df['High'].tail(30).max():,.2f}")
     with col4:
@@ -473,6 +473,10 @@ def rl_backtesting_page(username):
 def login_page():
     logger.info("Displaying login page.")
     st.title("Login")
+    st.warning(
+        "Este dashboard não configura recomendação de investimento e foi criado com "
+        "propósito estritamente acadêmico."
+    )
     username = st.text_input("Usuário")
     password = st.text_input("Senha", type="password")
     if st.button("Login"):
@@ -493,6 +497,10 @@ def login_page():
 def registration_page():
     logger.info("Displaying registration page.")
     st.title("Cadastro")
+    st.warning(
+        "Este dashboard não configura recomendação de investimento e foi criado com "
+        "propósito estritamente acadêmico."
+    )
     username = st.text_input("Usuário")
     password = st.text_input("Senha", type="password")
     if st.button("Cadastrar"):
@@ -515,6 +523,10 @@ def main():
         logger.info(f"User '{username}' is logged in.")
         
         st.sidebar.title(f"Bem-vindo, {username}")
+        st.sidebar.warning(
+            "Este dashboard não configura recomendação de investimento e foi criado com "
+            "propósito estritamente acadêmico."
+        )
         page = st.sidebar.radio("Selecione uma página", ["Dashboard", "Settings", "Backtesting", "Backtesting RL"])
 
         logger.info(f"User '{username}' navigated to page: {page}")
